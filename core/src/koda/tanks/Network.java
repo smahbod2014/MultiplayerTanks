@@ -17,6 +17,7 @@ public class Network {
 		k.register(ShuttingDownMessage.class);
 		k.register(BulletMessage.class);
 		k.register(PlayerHitMessage.class);
+		k.register(PlayerRevivedMessage.class);
 	}
 	
 	public static class ShuttingDownMessage {}
@@ -61,5 +62,13 @@ public class Network {
 		float y;
 		int dir;
 		int hp;
+		boolean success;
+	}
+	
+	public static class PlayerRevivedMessage {
+		int pid;
+		int dir;
+		float x;
+		float y;
 	}
 }

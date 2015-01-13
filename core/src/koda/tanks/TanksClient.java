@@ -7,6 +7,7 @@ import koda.tanks.Network.LeaveMessage;
 import koda.tanks.Network.LoginResponseMessage;
 import koda.tanks.Network.NewPlayerMessage;
 import koda.tanks.Network.PlayerHitMessage;
+import koda.tanks.Network.PlayerRevivedMessage;
 import koda.tanks.Network.PositionMessage;
 import koda.tanks.Network.ShuttingDownMessage;
 
@@ -84,6 +85,9 @@ public class TanksClient extends Listener {
 		} else if (pkt instanceof LoginResponseMessage) {
 			LoginResponseMessage msg = (LoginResponseMessage) pkt;
 			game.onLoginResponse(msg);
+		} else if (pkt instanceof PlayerRevivedMessage) {
+			PlayerRevivedMessage msg = (PlayerRevivedMessage) pkt;
+			game.onPlayerRevived(msg);
 		}
 	}
 	

@@ -11,10 +11,14 @@ import com.badlogic.gdx.utils.Array;
 
 public class Player extends Entity {
 	
+	public static final long DEAD_TIME = 1500;
 	public static final int MAX_HP = 10;
+	
 	public String name;
 	public Array<Bullet> bullets;
 	public int hp;
+	
+	private long timeKilled;
 	
 	public Player(GameLogic game, Sprite sprite, float x, float y, String name) {
 		super(game, sprite, x, y);
@@ -22,14 +26,6 @@ public class Player extends Entity {
 		this.prevDir = -1;
 		bullets = new Array<Bullet>();
 	}
-	
-//	public int getDir() {
-//		return tankAnim.frame();
-//	}
-//	
-//	public void setDir(int frame) {
-//		tankAnim.setFrame(frame);
-//	}
 	
 	@Override
 	public boolean changed() {
@@ -54,6 +50,15 @@ public class Player extends Entity {
 	
 	public void hit(int damage) {
 		hp -= damage;
+		if (hp <= 0) {
+			hp = 0;
+			alive = false;
+			timeKilled = System.currentTimeMillis();
+		}
+	}
+	
+	public boolean canRespawn() {
+		return System.currentTimeMillis() >= timeKilled + DEAD_TIME;
 	}
 	
 	@Override
@@ -68,6 +73,9 @@ public class Player extends Entity {
 			msg.dir = dir;
 			msg.newBullet = true;
 			game.tc.client.sendTCP(msg);
+			//move this sound later, should be together with onBulletFired() in GameLogic
+			if (!game.windowMinimized)
+				game.sounds.get("shoot").play(game.volume);
 		}
 		
 		if (Gdx.input.isKeyJustPressed(Keys.Z)) {

@@ -20,6 +20,7 @@ public abstract class Entity {
 	public float prevY;
 	public int dir;
 	public int prevDir;
+	public boolean alive;
 	public Sprite sprite;
 	public GameLogic game;
 	protected final Rectangle bounds = new Rectangle(0, 0, (int) TILESIZE, (int) TILESIZE);
@@ -35,6 +36,7 @@ public abstract class Entity {
 		this.prevY = y - 1;
 		this.sprite.setX(x);
 		this.sprite.setY(y);
+		this.alive = true;
 	}
 	
 	public boolean changed() {

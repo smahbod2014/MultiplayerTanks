@@ -6,13 +6,11 @@ public class Bullet extends Entity {
 
 	public static final float SPEED = 300;
 	
-	public boolean alive;
 	public String shooter;
 	
 	public Bullet(GameLogic game, Sprite sprite, float x, float y, int dir, String shooter) {
 		super(game, sprite, x, y);
 		this.dir = dir;
-		this.alive = true;
 		this.shooter = shooter;
 		rotateSprite(dir);
 	}

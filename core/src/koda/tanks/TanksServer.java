@@ -50,6 +50,30 @@ public class TanksServer extends Listener {
 		positions.add(new Vector3(game.level.offX + (game.level.level[0].length - 2) * Entity.TILESIZE, game.level.offY + Entity.TILESIZE, Entity.LEFT));
 	}
 	
+	public Vector3 getStartingSpot() {
+		int index = 0;
+		for (Player p : game.players.values()) {
+			float posx = p.x;
+			float posy = p.y;
+			float checkx = positions.get(index).x;
+			float checky = positions.get(index).y;
+			System.out.println("Player at: (" + posx + ", " + posy + "), spawn is (" + checkx + ", " + checky + ")");
+			if ((int) p.x == (int) positions.get(index).x && (int) p.y == (int) positions.get(index).y) {
+				index++;
+//				System.out.println("Incrementing index, is now" + index);
+				if (index == positions.size) {
+					//figure something out for this later
+					return positions.get(0);
+				}
+			} else {
+//				System.out.println("Returning index " + index);
+				return positions.get(index);
+			}
+		}
+		
+		return positions.get(index);
+	}
+	
 	public void shutdown() {
 		Log.info("Server shutting down");
 		server.sendToAllTCP(new ShuttingDownMessage());
@@ -69,43 +93,21 @@ public class TanksServer extends Listener {
 			final NewPlayerMessage msg = (NewPlayerMessage) pkt;
 			//have the server assign a corner to the player
 			
+			Vector3 position = getStartingSpot();
 			msg.pid = c.getID();
-			msg.x = positions.get(0).x;
-			msg.y = positions.get(0).y;
-			msg.dir = (int) positions.get(0).z;
+			msg.x = position.x;
+			msg.y = position.y;
+			msg.dir = (int) position.z;
 			msg.hp = Player.MAX_HP;
-			positions.add(positions.removeIndex(0));
 			game.onNewPlayer(msg);
-			//tell everyone about this new player
-			server.sendToAllExceptTCP(c.getID(), msg);
-			
-			LoginResponseMessage response = new LoginResponseMessage();
-			response.x = msg.x;
-			response.y = msg.y;
-			response.dir = msg.dir;
-			response.hp = msg.hp;
-			server.sendToTCP(c.getID(), response);
 			
 		} else if (pkt instanceof PositionMessage) {
 			PositionMessage msg = (PositionMessage) pkt;
-//			Entity e = svEntities.get(c.getID());
-//			e.x = msg.x;
-//			e.y = msg.y;
-//			if (e instanceof Player)
-//				((Player) e).setDir(msg.dir);
 			msg.pid = c.getID();
 			game.onMovementUpdate(msg);
 			server.sendToAllExceptUDP(c.getID(), msg);
 		} else if (pkt instanceof BulletMessage) {
-			final BulletMessage msg = (BulletMessage) pkt;
-//			final Player p = (Player) svEntities.get(c.getID());
-//			Gdx.app.postRunnable(new Runnable() {
-//				public void run() {
-//					p.addBullet(msg.x, msg.y, msg.dir, msg.name);
-//					Log.info("Server added bullet for " + p.name);
-//				}
-//			});
-			
+			BulletMessage msg = (BulletMessage) pkt;
 			msg.pid = c.getID();
 			game.onBulletFired(msg);
 			//for now, bullet fired is always valid

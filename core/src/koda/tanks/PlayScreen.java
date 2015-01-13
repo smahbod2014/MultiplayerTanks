@@ -1,5 +1,6 @@
 package koda.tanks;
 
+import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -9,12 +10,14 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 public class PlayScreen implements Screen {
 
-	static TanksServer ts;
-	static TanksClient tc;
+	TanksServer ts;
+	TanksClient tc;
 	final String host;
 	final boolean isServer;
 	final String name;
 	SpriteBatch batch;
+	//make this camera non static later to clean up projection matrix in GameLogic?
+	//actually, this class has a reference to the came, so can just just pass in the camera to the game
 	static OrthographicCamera camera;
 	GameLogic game;
 	long hitMessageDuration = 2000;
@@ -91,14 +94,12 @@ public class PlayScreen implements Screen {
 
 	@Override
 	public void pause() {
-		// TODO Auto-generated method stub
-
+		game.windowMinimized = true;
 	}
 
 	@Override
 	public void resume() {
-		// TODO Auto-generated method stub
-
+		game.windowMinimized = false;
 	}
 
 	@Override
