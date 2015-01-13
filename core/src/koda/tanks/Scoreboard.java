@@ -30,15 +30,17 @@ public class Scoreboard {
 	
 	public void updateEntryAdd(String name, int score) {
 		for (ScoreEntry s : entries) {
-			if (s.name.equals(name))
+			if (s.name.equals(name)) {
 				s.score += score;
+			}
 		}
 	}
 	
 	public void updateEntrySet(String name, int score) {
 		for (ScoreEntry s : entries) {
-			if (s.name.equals(name))
+			if (s.name.equals(name)) {
 				s.score = score;
+			}
 		}
 	}
 	

@@ -53,11 +53,14 @@ public class TanksServer extends Listener {
 	public Vector3 getStartingSpot() {
 		int index = 0;
 		for (Player p : game.players.values()) {
+			if (!p.alive)
+				continue;
+			
 			float posx = p.x;
 			float posy = p.y;
 			float checkx = positions.get(index).x;
 			float checky = positions.get(index).y;
-			System.out.println("Player at: (" + posx + ", " + posy + "), spawn is (" + checkx + ", " + checky + ")");
+			System.out.println(p.name + " at: (" + posx + ", " + posy + "), spawn is (" + checkx + ", " + checky + ")");
 			if ((int) p.x == (int) positions.get(index).x && (int) p.y == (int) positions.get(index).y) {
 				index++;
 //				System.out.println("Incrementing index, is now" + index);

@@ -10,7 +10,7 @@ public class TanksLauncher {
 		config.width = 480;
 		config.height = 360;
 		config.title = "Multiplayer Tanks";
-//		config.y = 30;
+		config.y = 30;
 		config.resizable = false;
 		new LwjglApplication(new Tanks(), config);
 	}
