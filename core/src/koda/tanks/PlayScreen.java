@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 public class PlayScreen implements Screen {
 
+	//TODO: bug, server player cannot recognize bottom left as being vacant upon respawn
 	TanksServer ts;
 	TanksClient tc;
 	final String host;

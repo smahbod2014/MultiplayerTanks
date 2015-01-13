@@ -40,6 +40,7 @@ public class GameLogic {
 	BitmapFont nameTag;
 	BitmapFont hpTag;
 	Level level;
+	Scoreboard scores;
 	
 	Player localPlayer;
 	float volume = .375f;
@@ -73,6 +74,12 @@ public class GameLogic {
 			for (int i = 0; i < soundAliases.length; i++) {
 				sounds.put(soundAliases[i], Gdx.audio.newSound(Gdx.files.internal(soundNames[i])));
 			}
+		}
+		
+		if (!isServer) {
+			scores = new Scoreboard(new BitmapFont(Gdx.files.internal("comicsans.fnt")), new BitmapFont(Gdx.files.internal("comicsans.fnt")));
+			scores.offX = 2;
+			scores.offY = 2;
 		}
 		
 		
@@ -226,6 +233,7 @@ public class GameLogic {
 					sounds.get("hit").play(volume);
 			}
 			else {
+				scores.updateEntryAdd(msg.shooterName, 1);
 				tc.specialText = msg.shooterName + " killed " + victim.name + "!";
 				if (!windowMinimized)
 					sounds.get("death").play(volume);
@@ -297,6 +305,9 @@ public class GameLogic {
 		newPlayer.rotateSprite(newPlayer.dir);
 		players.put(msg.pid, newPlayer);
 		
+		if (!isServer)
+			scores.addEntry(msg.name);
+		
 		if (isServer)
 			Log.info("Server added player " + newPlayer.name);
 		else
@@ -340,7 +351,6 @@ public class GameLogic {
 				}
 			});
 			
-//			tc.shutdown();
 			return;
 		}
 		
@@ -349,6 +359,8 @@ public class GameLogic {
 		localPlayer.hp = msg.hp;
 		localPlayer.rotateSprite(localPlayer.dir);
 		players.put(tc.id, localPlayer);
+		scores.addEntry(tc.name);
+		scores.localPlayerName = tc.name;
 		Log.info(tc.name + " has been instantiated");
 	}
 	
@@ -373,6 +385,8 @@ public class GameLogic {
 			p.render(batch);
 			p.drawTags(nameTag, hpTag, batch);
 		}
+		
+		scores.render(batch);
 	}
 	
 	public Player playerByName(String name) {
