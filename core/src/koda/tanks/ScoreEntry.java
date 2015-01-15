@@ -1,10 +1,10 @@
 package koda.tanks;
 
 
-public class ScoreEntry {
+public class ScoreEntry implements Comparable<ScoreEntry> {
 
 	public static final int CHARS = 10;
-	String formatted;
+	
 	public String name;
 	public int score;
 	
@@ -12,6 +12,8 @@ public class ScoreEntry {
 		this.name = name;
 		this.score = score;
 	}
+	
+	public ScoreEntry() {}
 	
 	private String format() {
 		String s = name;
@@ -25,5 +27,10 @@ public class ScoreEntry {
 	@Override
 	public String toString() {
 		return format();
+	}
+
+	@Override
+	public int compareTo(ScoreEntry s) {
+		return s.score - score;
 	}
 }

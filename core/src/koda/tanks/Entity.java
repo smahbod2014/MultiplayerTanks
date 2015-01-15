@@ -25,19 +25,23 @@ public abstract class Entity {
 	public boolean alive;
 	public Sprite sprite;
 	public GameLogic game;
+	//make TimerSystem static?
+	public TimerSystem timers = new TimerSystem();
 	protected final Rectangle bounds = new Rectangle(0, 0, TILESIZE, TILESIZE);
 	
 	
 	protected Entity(GameLogic game, Sprite sprite, float x, float y) {
 		this.game = game;
-		this.sprite = new Sprite(sprite);
 		this.x = x;
 		this.y = y;
 		this.prevX = x;
 		this.prevY = y;
-		this.sprite.setX(x);
-		this.sprite.setY(y);
 		this.alive = true;
+		if (sprite != null) {
+			this.sprite = new Sprite(sprite);
+			this.sprite.setX(x);
+			this.sprite.setY(y);
+		}
 	}
 	
 	public boolean changedPosAngle() {

@@ -1,7 +1,9 @@
 package koda.tanks;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.esotericsoftware.minlog.Log;
 
 public class PlayScreen implements Screen {
 
@@ -14,6 +16,7 @@ public class PlayScreen implements Screen {
 	GameLogic game;
 	
 	public PlayScreen(boolean isServer, String host, String name) {
+		Gdx.app.setLogLevel(Log.LEVEL_DEBUG);
 		this.host = host;
 		this.isServer = isServer;
 		this.name = name;

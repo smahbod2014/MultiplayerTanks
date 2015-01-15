@@ -29,6 +29,7 @@ public class Network {
 		float y;
 		int angle;
 		int hp;
+		int score;
 	}
 	
 	public static class PositionMessage {

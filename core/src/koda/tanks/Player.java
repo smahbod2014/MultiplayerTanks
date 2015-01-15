@@ -7,6 +7,7 @@ import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Array;
@@ -14,10 +15,17 @@ import com.badlogic.gdx.utils.Array;
 public class Player extends Entity {
 	
 	public static final long DEAD_TIME = 1500;
+	public static final long SHOOT_TIME = 250;
+	public static final long RESPAWN_INVULN_TIME = 2000;
+	public static final long FLASHING_TIME = 125;
+	public static final long FLASHING_TIME2 = 62;
+	public static final long ATTACKED_FLASH_TIME = 125;
 	public static final int MAX_HP = 10;
 	public static final float SPEED = 150;
 	public static final float ROT_SPEED = 350;
-	public static final float DISTANCE = TILESIZE;
+	public static final float DISTANCE_TO_MOVE = TILESIZE;
+	public static final long ATTACKED_FLASH_NUM = ATTACKED_FLASH_TIME / FLASHING_TIME2;
+	public static final long RESPAWNING_FLASH_NUM = RESPAWN_INVULN_TIME / FLASHING_TIME;
 	
 	public String name;
 	public Array<Bullet> bullets;
@@ -28,129 +36,54 @@ public class Player extends Entity {
 	public float targetX;
 	public float targetY;
 	public float distAccum;
-	boolean inMotion;
+	public boolean inMotion;
+	public boolean invulnerable;
+	public boolean gotHit;
 	
-	private long timeKilled;
+	public SpriteBatch psb;
+	public ShaderProgram shader;
 	
 	public Player(GameLogic game, Sprite sprite, float x, float y, String name) {
 		super(game, sprite, x, y);
 		this.name = name;
-		this.prevAngle = -1;
 		bullets = new Array<Bullet>();
-		lastX = x;
-		lastY = y;
+		timers.addTimer("shooting", SHOOT_TIME);
+		timers.addTimer("dead", DEAD_TIME);
+		timers.addTimer("flashing", FLASHING_TIME);
+		timers.addTimer("flashing2", FLASHING_TIME2);
+		timers.addTimer("respawning", RESPAWN_INVULN_TIME);
+		
+		if (!game.isServer) {
+			psb = new SpriteBatch();
+			ShaderProgram.pedantic = false;
+			shader = new ShaderProgram(Gdx.files.internal("shaders/flash.vsh"), Gdx.files.internal("shaders/flash.fsh"));
+			psb.setShader(shader);
+		}
 	}
 	
 	public void addBullet(float x, float y, int dir, String shooter) {
-		bullets.add(new Bullet(game, game.sprites.get("bullet"), x, y, dir, shooter));
+		Sprite spr = game.res == null ? null : game.res.getSprite("bullet");
+		bullets.add(new Bullet(game, spr, x, y, dir, shooter));
 	}
 	
 	public void hit(int damage) {
+		if (invulnerable)
+			return;
+		
 		hp -= damage;
+		timers.reset("flashing2");
+		timers.setCount(0);
+		gotHit = true;
 		if (hp <= 0) {
 			hp = 0;
 			alive = false;
-			timeKilled = System.currentTimeMillis();
+			timers.reset("dead");
 		}
 	}
 	
 	public boolean canRespawn() {
-		return System.currentTimeMillis() >= timeKilled + DEAD_TIME;
+		return timers.finished("dead");
 	}
-	
-	/*
-	public void checkCollisions(float dt) {
-
-		if (forward) {
-			for (int i = 0; i < game.allEntities.size; i++) {
-				Entity e = game.allEntities.get(i);
-				if (e == this || !e.alive)
-					continue;
-				
-				if (this.collidesWith(e)) {
-					System.out.println(name + " colliding with " + e);
-					System.out.println("Reverting from ("+x+", "+y+") to ("+lastX+", "+lastY+")");
-					if (x == lastX && y == lastY) {
-						//attempt a reverse vector!
-//						float a = MathUtils.atan2(e.bounds.y - this.bounds.y, e.bounds.x - this.bounds.x);
-//						x -= dt * SPEED * MathUtils.cos(a);
-//						y -= dt * SPEED * MathUtils.sin(a);
-//						x -= dt * SPEED * MathUtils.cosDeg(angle);
-//						y -= dt * SPEED * MathUtils.sinDeg(angle);
-						fitAround(e);
-						updateBounds();
-						System.out.println("SHITTO");
-						
-					} else {
-						x = lastX;
-						y = lastY;
-						updateBounds();
-					}
-					
-//					angle = lastAngle;
-					float cos = dt * SPEED * MathUtils.cosDeg(angle);
-					float sin = dt * SPEED * MathUtils.sinDeg(angle);
-					if (!done && this.collidesWith(e)) {
-						System.out.println("Still colliding?!?!");
-						done = true;
-					}
-					
-					
-					x += cos;
-					updateBounds();
-					if (this.collidesWith(e)) {
-						x = lastX;
-						updateBounds();
-					}
-					
-					y += sin;
-					updateBounds();
-					if (this.collidesWith(e)) {
-						y = lastY;
-						updateBounds();
-					}
-				}
-			}
-			
-			//collision should be fixed at this point. if not, wtf
-			lastX = x;
-			lastY = y;
-			updateBounds();
-		} else {
-			for (int i = 0; i < game.allEntities.size; i++) {
-				Entity e = game.allEntities.get(i);
-				if (e == this || !e.alive)
-					continue;
-				
-				if (this.collidesWith(e)) {
-					System.out.println(name + " colliding with " + e);
-					x = lastX;
-					y = lastY;
-					float cos = dt * SPEED * MathUtils.cosDeg(angle);
-					float sin = dt * SPEED * MathUtils.sinDeg(angle);
-					if (!done && this.collidesWith(e)) {
-						System.out.println("Still colliding?!?!");
-						done = true;
-					}
-					
-					
-					x += cos;
-					if (this.collidesWith(e))
-						x = lastX;
-					
-					y += sin;
-					if (this.collidesWith(e))
-						y = lastY;
-				}
-			}
-			
-			//collision should be fixed at this point. if not, wtf
-			lastX = x;
-			lastY = y;
-		}
-		
-		setPosition(x, y, angle);
-	}*/
 	
 	public boolean canMove() {
 		float nx = bounds().x + TILESIZE * MathUtils.cosDeg(angle);
@@ -161,16 +94,22 @@ public class Player extends Entity {
 				return false;
 		}
 		
-		targetX = x + TILESIZE * MathUtils.cosDeg(angle);
-		targetY = y + TILESIZE * MathUtils.sinDeg(angle);
+		nx = x + TILESIZE * MathUtils.cosDeg(angle);
+		ny = y + TILESIZE * MathUtils.sinDeg(angle);
 		
 		for (Player p : game.players.values()) {
 			if (p == this || !p.alive)
 				continue;
 			
-			if (targetX == p.x && targetY == p.y)
+			if (nx == p.x && ny == p.y)
+				return false;
+			
+			if (nx == p.lastX && ny == p.lastY)
 				return false;
 		}
+		
+		targetX = nx;
+		targetY = ny;
 		
 		return true;
 	}
@@ -181,31 +120,49 @@ public class Player extends Entity {
 		return tmp * TILESIZE;
 	}
 	
-	//not everything in input is efficient, such as the lastX/Y and targetX/Y
+	public void respawn(float x, float y, int angle) {
+		alive = true;
+		this.x = x;
+		this.y = y;
+		this.angle = angle;
+		hp = MAX_HP;
+		lastX = x;
+		lastY = y;
+		timers.reset("respawning");
+		timers.setCount(0);
+		invulnerable = true;
+	}
+	
+	private void flash(final float f) {
+		if (game.isServer)
+			return;
+		
+		shader.begin();
+		shader.setUniformf("u_flasher", f, f, f, 1);
+		shader.end();
+	}
+	
 	@Override
 	public void input(float dt) {
 		//shooting
-		if (Gdx.input.isKeyJustPressed(Keys.SPACE)) {
+		if (alive && timers.finished("shooting") && Gdx.input.isKeyPressed(Keys.SPACE)) {
+			timers.reset("shooting");
 			addBullet(x, y, angle, name);
 			BulletMessage msg = new BulletMessage();
 			game.tc.client.sendTCP(msg);
 			//move this sound later, should be together with onBulletFired() in GameLogic
-			if (!game.windowMinimized)
-				game.sounds.get("shoot").play(game.volume);
+			game.res.playSound("shoot", game.volume);
 		}
 		
 		if (Gdx.input.isKeyJustPressed(Keys.Z)) {
 			System.out.println(this);
 		}
 		
-		if (Gdx.input.isKeyJustPressed(Keys.X)) {
-			setPosition(289, 164, angle);
-		}
-		
 		//movement version 1
 		//W - up, A - left, S - down, D - right
-		if (!inMotion) {
+		if (alive && !inMotion) {
 			if (Gdx.input.isKeyPressed(Keys.W) || Gdx.input.isKeyPressed(Keys.UP)) {
+				//setting lastX/Y here likely useless, see canMove() for why
 				lastY = y;
 				angle = UP;
 				if (canMove())
@@ -234,43 +191,53 @@ public class Player extends Entity {
 				//THIS SYSTEM ISN'T PERFECT. FIX IT
 			}
 		}
-		
-		setPosition(x, y, angle);
-		
-		//movement, version 2
-		//W - forward, A/D - rotate left/right, S - backward
-//		if (Gdx.input.isKeyPressed(Keys.W)) {
-//			lastX = x;
-//			lastY = y;
-//			x += dt * SPEED * MathUtils.cosDeg(angle);
-//			y += dt * SPEED * MathUtils.sinDeg(angle);
-//			forward = true;
-//		}
-//		
-//		if (Gdx.input.isKeyPressed(Keys.S)) {
-//			lastX = x;
-//			lastY = y;
-//			x -= dt * SPEED * MathUtils.cosDeg(angle);
-//			y -= dt * SPEED * MathUtils.sinDeg(angle);
-//			forward = false;
-//		}
-//		
-//		if (Gdx.input.isKeyPressed(Keys.A)) {
-//			angle += dt * ROT_SPEED;
-//		}
-//		
-//		if (Gdx.input.isKeyPressed(Keys.D)) {
-//			angle -= dt * ROT_SPEED;
-//		}
-		
-		
-		
-//		if (angle != prevAngle)
-//			rotateSprite(angle);
 	}
-
+	
+	private void flashing() {
+		if (game.isServer && gotHit)
+			gotHit = false;
+		
+		if (gotHit) {
+			if (timers.justStarted("flashing2") && timers.count("flashing2") == 0)
+				flash(.7f);
+			
+			if (timers.poll("flashing2")) {
+				timers.reset("flashing2");
+				if (timers.count("flashing2") % 2 == 0) {
+					flash(.7f);
+				} else {
+					flash(0);
+				}
+				
+				if (timers.count("flashing2") == ATTACKED_FLASH_NUM - 1) {
+					timers.setCount("flashing2", 0);
+					gotHit = false;
+				}
+			}
+		}
+		
+		if (invulnerable) {
+			if (timers.justStarted("flashing") && timers.count("flashing") == 0)
+				flash(.7f);
+			
+			if (timers.poll("flashing")) {
+				timers.reset("flashing");
+				if (timers.count("flashing") % 2 == 0) {
+					flash(.7f);
+				} else {
+					flash(0);
+				}
+				
+				if (timers.count("flashing") == RESPAWNING_FLASH_NUM - 1) {
+					timers.setCount("flashing", 0);
+					invulnerable = false;
+				}
+			}
+		}
+	}
+	
 	@Override
-	public void update(float dt) {
+	public void update(float dt) {		
 		if (inMotion) {
 			float tx = x;
 			float ty = y;
@@ -279,10 +246,12 @@ public class Player extends Entity {
 			distAccum += (float) Math.hypot(x - tx, y - ty);
 			//temporary
 			
-			if (distAccum >= DISTANCE) {
+			if (distAccum >= DISTANCE_TO_MOVE) {
 				distAccum = 0;
 				x = normalize(x);
 				y = normalize(y);
+				lastX = x;
+				lastY = y;
 				inMotion = false;
 			}
 			
@@ -299,11 +268,14 @@ public class Player extends Entity {
 				bullets.removeIndex(i);
 			}
 		}
+		
+		flashing();
 	}
 	
 	@Override
 	public void render(SpriteBatch batch) {
-		super.render(batch);
+		psb.setProjectionMatrix(game.levelCam.combined);
+		super.render(psb);
 		for (Bullet b : bullets)
 			b.render(batch);
 	}

@@ -41,8 +41,14 @@ public class TanksServer extends Listener {
 	}
 	
 	//uses random algorithm
-	public Vector2 getStartingSpot() {
-		//this method will infinitely loop if all starting positions are occupied. set a limit!
+	public synchronized Vector2 getStartingSpot() {
+		if (game.players.values().size() > positions.size)
+			return null;
+		
+//		int i = 1;
+//		if (i == 1)
+//			return positions.get(0);
+		
 		boolean found = false;
 		int index = 0;
 		while (!found) {
@@ -51,37 +57,19 @@ public class TanksServer extends Listener {
 			if (game.players.values().size() == 0)
 				return positions.get(index);
 			
+			boolean playerOnSpot = false;
 			for (Player p : game.players.values()) {	
-				if (!p.alive)
-					continue;
-				
-				if (!isAtPosition(p, index)) {
-					found = true;
+				if (p.alive && isAtPosition(p, index)) {
+					playerOnSpot = true;
 					break;
 				}
 			}
+			
+			if (!playerOnSpot)
+				return positions.get(index);
 		}
 		
-		return positions.get(index);
-//		int index = 0;
-//		for (Player p : game.players.values()) {
-//			if (!p.alive)
-//				continue;
-//			
-//			float checkx = positions.get(index).x;
-//			float checky = positions.get(index).y;
-//			if (isAtPosition(p, index)) {
-//				index++;
-//				if (index == positions.size) {
-//					//figure something out for this later
-//					return positions.get(0);
-//				}
-//			} else {
-//				return positions.get(index);
-//			}
-//		}
-//		
-//		return positions.get(index);
+		return null;
 	}
 	
 	private boolean isAtPosition(Player p, int index) {
@@ -108,6 +96,7 @@ public class TanksServer extends Listener {
 			final NewPlayerMessage msg = (NewPlayerMessage) pkt;
 			//have the server assign a corner to the player
 			
+			//this chunk of code is only invoked when a player is connecting for the first time
 			Vector2 position = getStartingSpot();
 			msg.pid = c.getID();
 			msg.x = position.x;
