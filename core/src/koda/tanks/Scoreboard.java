@@ -21,7 +21,8 @@ public class Scoreboard {
 		entries = new Array<ScoreEntry>();
 		this.font = font;
 		this.localFont = localFont;
-		this.localFont.setColor(89f/255, 205f/255, 121f/255, 1);
+//		this.localFont.setColor(89f/255, 205f/255, 121f/255, 1);
+		this.localFont.setColor(Color.RED);
 	}
 	
 	public void addEntry(String name) {

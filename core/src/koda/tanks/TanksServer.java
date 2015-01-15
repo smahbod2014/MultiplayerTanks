@@ -4,14 +4,13 @@ import java.io.IOException;
 
 import koda.tanks.Network.BulletMessage;
 import koda.tanks.Network.LeaveMessage;
-import koda.tanks.Network.LoginResponseMessage;
 import koda.tanks.Network.NewPlayerMessage;
 import koda.tanks.Network.PositionMessage;
 import koda.tanks.Network.ShuttingDownMessage;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
@@ -22,16 +21,12 @@ public class TanksServer extends Listener {
 
 	Server server;
 	GameLogic game;
-	Array<Vector3> positions = new Array<Vector3>();
+	Array<Vector2> positions = new Array<Vector2>();
 	
 	public TanksServer() {
 		game = new GameLogic(this);
-		server = new Server() {
-//			@Override
-//			protected Connection newConnection() {
-//				return new TanksConnection();
-//			}
-		};
+		positions = game.level.positions;
+		server = new Server();
 		
 		Network.registerPackets(server);
 		try {
@@ -43,38 +38,55 @@ public class TanksServer extends Listener {
 		
 		server.addListener(this);
 		server.start();
-		
-		positions.add(new Vector3(game.level.offX + Entity.TILESIZE, game.level.offY + Entity.TILESIZE, Entity.RIGHT));
-		positions.add(new Vector3(game.level.offX + Entity.TILESIZE, game.level.offY + (game.level.level.length - 2) * Entity.TILESIZE, Entity.RIGHT));
-		positions.add(new Vector3(game.level.offX + (game.level.level[0].length - 2) * Entity.TILESIZE, game.level.offY + (game.level.level.length - 2) * Entity.TILESIZE, Entity.LEFT));
-		positions.add(new Vector3(game.level.offX + (game.level.level[0].length - 2) * Entity.TILESIZE, game.level.offY + Entity.TILESIZE, Entity.LEFT));
 	}
 	
-	public Vector3 getStartingSpot() {
+	//uses random algorithm
+	public Vector2 getStartingSpot() {
+		//this method will infinitely loop if all starting positions are occupied. set a limit!
+		boolean found = false;
 		int index = 0;
-		for (Player p : game.players.values()) {
-			if (!p.alive)
-				continue;
+		while (!found) {
+			index = (int) (Math.random() * positions.size);
 			
-			float posx = p.x;
-			float posy = p.y;
-			float checkx = positions.get(index).x;
-			float checky = positions.get(index).y;
-			System.out.println(p.name + " at: (" + posx + ", " + posy + "), spawn is (" + checkx + ", " + checky + ")");
-			if ((int) p.x == (int) positions.get(index).x && (int) p.y == (int) positions.get(index).y) {
-				index++;
-//				System.out.println("Incrementing index, is now" + index);
-				if (index == positions.size) {
-					//figure something out for this later
-					return positions.get(0);
-				}
-			} else {
-//				System.out.println("Returning index " + index);
+			if (game.players.values().size() == 0)
 				return positions.get(index);
+			
+			for (Player p : game.players.values()) {	
+				if (!p.alive)
+					continue;
+				
+				if (!isAtPosition(p, index)) {
+					found = true;
+					break;
+				}
 			}
 		}
 		
 		return positions.get(index);
+//		int index = 0;
+//		for (Player p : game.players.values()) {
+//			if (!p.alive)
+//				continue;
+//			
+//			float checkx = positions.get(index).x;
+//			float checky = positions.get(index).y;
+//			if (isAtPosition(p, index)) {
+//				index++;
+//				if (index == positions.size) {
+//					//figure something out for this later
+//					return positions.get(0);
+//				}
+//			} else {
+//				return positions.get(index);
+//			}
+//		}
+//		
+//		return positions.get(index);
+	}
+	
+	private boolean isAtPosition(Player p, int index) {
+		Rectangle rect = new Rectangle(positions.get(index).x, positions.get(index).y, Entity.TILESIZE, Entity.TILESIZE);
+		return p.collidesWith(rect);
 	}
 	
 	public void shutdown() {
@@ -96,11 +108,11 @@ public class TanksServer extends Listener {
 			final NewPlayerMessage msg = (NewPlayerMessage) pkt;
 			//have the server assign a corner to the player
 			
-			Vector3 position = getStartingSpot();
+			Vector2 position = getStartingSpot();
 			msg.pid = c.getID();
 			msg.x = position.x;
 			msg.y = position.y;
-			msg.dir = (int) position.z;
+			msg.angle = Entity.RIGHT; //(int) position.z;
 			msg.hp = Player.MAX_HP;
 			game.onNewPlayer(msg);
 			

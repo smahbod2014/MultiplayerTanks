@@ -13,12 +13,16 @@ import koda.tanks.Network.PositionMessage;
 
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.audio.Sound;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 
@@ -39,17 +43,42 @@ public class GameLogic {
 	TanksClient tc;
 	BitmapFont nameTag;
 	BitmapFont hpTag;
+	BitmapFont text;
 	Level level;
 	Scoreboard scores;
+	ShapeRenderer sr;
+	OrthographicCamera levelCam;
+	OrthographicCamera hudCam;
 	
 	Player localPlayer;
+	Array<Integer> lastToMove;
+	Array<Entity> allEntities;
 	float volume = .375f;
 	boolean windowMinimized;
+	long hitMessageDuration = 2000;
 	
 	public GameLogic(TanksClient tc) {
 		this.tc = tc;
 		isServer = false;
 		initCommon();
+		
+		sr = new ShapeRenderer();
+		sounds = new HashMap<String, Sound>();
+		for (int i = 0; i < soundAliases.length; i++) {
+			sounds.put(soundAliases[i], Gdx.audio.newSound(Gdx.files.internal(soundNames[i])));
+		}
+		
+		text = new BitmapFont(Gdx.files.internal("comicsans.fnt"));
+		nameTag = new BitmapFont(Gdx.files.internal("comicsans.fnt"));
+		hpTag = new BitmapFont(Gdx.files.internal("comicsans.fnt"));
+		hpTag.setScale(.5f);
+		
+		scores = new Scoreboard(new BitmapFont(Gdx.files.internal("comicsans.fnt")), new BitmapFont(Gdx.files.internal("comicsans.fnt")));
+		scores.offX = 2;
+		scores.offY = 2;
+		
+		levelCam = new OrthographicCamera();
+		hudCam = new OrthographicCamera();
 	}
 	
 	public GameLogic(TanksServer ts) {
@@ -68,38 +97,34 @@ public class GameLogic {
 			}
 			sprites.put(spriteAliases[i], spriteAtlas.createSprite(spriteNames[i]));
 		}
-		
-		if (!isServer) {
-			sounds = new HashMap<String, Sound>();
-			for (int i = 0; i < soundAliases.length; i++) {
-				sounds.put(soundAliases[i], Gdx.audio.newSound(Gdx.files.internal(soundNames[i])));
-			}
-		}
-		
-		if (!isServer) {
-			scores = new Scoreboard(new BitmapFont(Gdx.files.internal("comicsans.fnt")), new BitmapFont(Gdx.files.internal("comicsans.fnt")));
-			scores.offX = 2;
-			scores.offY = 2;
-		}
-		
-		
-		nameTag = new BitmapFont(Gdx.files.internal("comicsans.fnt"));
-		hpTag = new BitmapFont(Gdx.files.internal("comicsans.fnt"));
-		hpTag.setScale(.5f);
+				
+		lastToMove = new Array<Integer>();
+		allEntities = new Array<Entity>();
 		
 		level = new Level(this);
 		level.offX = 5 * Entity.TILESIZE;
 		level.offY = Entity.TILESIZE;
-		level.createSampleLevel();
+		level.createLevel("tanks_level1.png");
+		allEntities.addAll(level.walls);
 	}
 	
-	public void input() {
+	public void input(float dt) {
 		//client not ready
-		if (isServer && localPlayer == null)
+		//useless statement?
+		if (localPlayer == null)
 			return;
 		
-		if (!isServer)
-			localPlayer.input();
+		if (Gdx.input.isKeyJustPressed(Keys.C)) {
+			levelCam.zoom += 1 / 25f;
+			levelCam.update();
+		}
+		
+		if (Gdx.input.isKeyJustPressed(Keys.V)) {
+			levelCam.zoom -= 1 / 25f;
+			levelCam.update();
+		}
+		
+		localPlayer.input(dt);
 	}
 	
 	public void update(float dt) {
@@ -143,46 +168,28 @@ public class GameLogic {
 			}
 		}
 		
-		//check collisions (player to wall)
-		for (Player p : players.values()) {
-			if (!p.alive)
-				continue;
-			
-			for (Wall w : level.walls) {
-				if (p.collidesWith(w)) {
-					p.setPosition(p.prevX, p.prevY, p.dir);
-				}
-			}
-		}
-		
 		//check collisions (player to player)
-		for (Player p1 : players.values()) {
-			if (!p1.alive)
-				continue;
-			
-			for (Player p2 : players.values()) {
-				if (p2.alive && p1 != p2 && p1.collidesWith(p2)) {
-					p1.setPosition(p1.prevX, p1.prevY, p1.dir);
-					p2.setPosition(p2.prevX, p2.prevY, p2.dir);
-				}
-			}
-		}
-		
-		//clean up at end of update loop
-		for (Player p : players.values()) {
-			if (p != localPlayer)
-				p.clean();
-		}
+//		for (Player p1 : players.values()) {
+//			if (!p1.alive)
+//				continue;
+//			
+//			for (Player p2 : players.values()) {
+//				if (p2.alive && p1 != p2 && p1.collidesWith(p2)) {
+//					p1.setPosition(p1.lastX, p1.lastY, p1.angle);
+//					p2.setPosition(p2.lastX, p2.lastY, p2.angle);
+//				}
+//			}
+//		}
 		
 		//revive dead players
 		if (isServer) {
 			for (Map.Entry<Integer, Player> e : players.entrySet()) {
 				Player p = e.getValue();
 				if (!p.alive && p.canRespawn()) {
-					Vector3 pos = ts.getStartingSpot();
+					Vector2 pos = ts.getStartingSpot();
 					PlayerRevivedMessage msg = new PlayerRevivedMessage();
 					msg.pid = e.getKey();
-					msg.dir = (int) pos.z;
+					msg.angle = Entity.RIGHT; //(int) pos.z;
 					msg.x = pos.x;
 					msg.y = pos.y;
 					ts.server.sendToAllTCP(msg);
@@ -192,12 +199,25 @@ public class GameLogic {
 			}
 		}
 		
-		if (!isServer) {
-			if (localPlayer.changed()) {
+		//clean up at end of update loop
+		for (Player p : players.values()) {
+			if (p != localPlayer)
+				p.cleanPosAngle();
+		}
+		
+		//send positional data about self to server
+		//the !isServer check is not necessary, but makes things explicit
+		if (!isServer && localPlayer != null) {
+			if (localPlayer.changedPosAngle()) {
 				PositionMessage msg = new PositionMessage();
 				msg.x = localPlayer.x;
 				msg.y = localPlayer.y;
-				msg.dir = localPlayer.dir;
+				msg.lastX = localPlayer.lastX;
+				msg.lastY = localPlayer.lastY;
+				msg.angle = localPlayer.angle;
+				msg.targetX = localPlayer.targetX;
+				msg.targetY = localPlayer.targetY;
+				localPlayer.cleanPosAngle();
 				tc.client.sendUDP(msg);
 			}
 		}
@@ -211,7 +231,6 @@ public class GameLogic {
 		NewPlayerMessage msg = new NewPlayerMessage();
 		msg.name = tc.name;
 		tc.client.sendTCP(msg);
-		players.put(tc.id, localPlayer);
 		Log.info("Client " + tc.name + " is online");
 	}
 	
@@ -220,9 +239,6 @@ public class GameLogic {
 	 * @param msg
 	 */
 	public void onPlayerHit(PlayerHitMessage msg) {
-		//shooter is not needed. maybe for other features later?
-//		Player shooter = playerByName(msg.shooterName);
-		
 		Player victim = playerByName(msg.victimName);
 		victim.hit(1);
 		
@@ -248,8 +264,7 @@ public class GameLogic {
 	 */
 	public void onBulletFired(BulletMessage msg) {
 		Player shooter = players.get(msg.pid);
-		//unneeded message attributes. just need the pid
-		shooter.addBullet(shooter.x, shooter.y, shooter.dir, shooter.name);
+		shooter.addBullet(shooter.x, shooter.y, shooter.angle, shooter.name);
 		
 		if (!isServer && !windowMinimized)
 			sounds.get("shoot").play(volume);
@@ -261,7 +276,11 @@ public class GameLogic {
 	 */
 	public void onMovementUpdate(PositionMessage msg) {
 		Player current = players.get(msg.pid);
-		current.setPosition(msg.x, msg.y, msg.dir);
+		current.setPosition(msg.x, msg.y, msg.angle);
+		current.lastX = msg.lastX;
+		current.lastY = msg.lastY;
+		current.targetX = msg.targetX;
+		current.targetY = msg.targetY;
 	}
 	
 	/**
@@ -270,6 +289,8 @@ public class GameLogic {
 	 */
 	public void onPlayerLeaves(LeaveMessage msg) {
 		//this will need synchronization and cleanup later
+		Player p = players.get(msg.pid);
+		allEntities.removeValue(p, true);
 		players.remove(msg.pid);
 	}
 	
@@ -284,13 +305,12 @@ public class GameLogic {
 				LoginResponseMessage response = new LoginResponseMessage();
 				response.success = false;
 				ts.server.sendToTCP(msg.pid, response);
-//				ts.server.getConnections()[msg.pid - 1].close();
 				return;
 			} else {
 				LoginResponseMessage response = new LoginResponseMessage();
 				response.x = msg.x;
 				response.y = msg.y;
-				response.dir = msg.dir;
+				response.angle = msg.angle;
 				response.hp = msg.hp;
 				response.success = true;
 				ts.server.sendToTCP(msg.pid, response);
@@ -300,10 +320,10 @@ public class GameLogic {
 		//otherwise we're good
 		Player newPlayer = new Player(this, sprites.get("tank"), msg.x, msg.y, msg.name);
 		//probably make dir a setter
-		newPlayer.dir = msg.dir;
+		newPlayer.angle = msg.angle;
 		newPlayer.hp = msg.hp;
-		newPlayer.rotateSprite(newPlayer.dir);
 		players.put(msg.pid, newPlayer);
+		allEntities.add(newPlayer);
 		
 		if (!isServer)
 			scores.addEntry(msg.name);
@@ -329,7 +349,7 @@ public class GameLogic {
 					previousPlayer.pid = con.getID();
 					previousPlayer.x = e.x; 
 					previousPlayer.y = e.y;
-					previousPlayer.dir = e.dir;
+					previousPlayer.angle = e.angle;
 					previousPlayer.hp = e.hp;
 					ts.server.sendToTCP(msg.pid, previousPlayer);
 				}
@@ -341,7 +361,7 @@ public class GameLogic {
 	 * Called only by client
 	 * @param msg
 	 */
-	public void onLoginResponse(LoginResponseMessage msg) {
+	public synchronized void onLoginResponse(LoginResponseMessage msg) {
 		if (!msg.success) {
 			Log.info("There is already a user with the name " + tc.name);
 			Gdx.app.postRunnable(new Runnable() {
@@ -355,12 +375,14 @@ public class GameLogic {
 		}
 		
 		localPlayer = new Player(this, sprites.get("tank"), msg.x, msg.y, tc.name);
-		localPlayer.dir = msg.dir;
+		localPlayer.angle = msg.angle;
 		localPlayer.hp = msg.hp;
-		localPlayer.rotateSprite(localPlayer.dir);
 		players.put(tc.id, localPlayer);
+		allEntities.add(localPlayer);
 		scores.addEntry(tc.name);
 		scores.localPlayerName = tc.name;
+		levelCam.position.set(msg.x, msg.y, 0);
+		levelCam.update();
 		Log.info(tc.name + " has been instantiated");
 	}
 	
@@ -368,13 +390,22 @@ public class GameLogic {
 		Player p = players.get(msg.pid);
 		p.alive = true;
 		p.hp = Player.MAX_HP;
-		p.setPosition(msg.x, msg.y, msg.dir);
-		p.clean();
+		p.setPosition(msg.x, msg.y, msg.angle);
+		p.lastX = p.x;
+		p.lastY = p.y;
+		p.cleanPosAngle();
 		
+		//client only
+		if (p == localPlayer) {
+			levelCam.position.set(p.x, p.y, 0);
+			levelCam.update();
+		}
 	}
 	
 	public void render(SpriteBatch batch) {
-		batch.setProjectionMatrix(PlayScreen.camera.combined);
+		level.checkCameraPosition();
+		
+		batch.setProjectionMatrix(levelCam.combined);
 		
 		level.render(batch);
 		
@@ -386,7 +417,24 @@ public class GameLogic {
 			p.drawTags(nameTag, hpTag, batch);
 		}
 		
+		batch.setProjectionMatrix(hudCam.combined);
 		scores.render(batch);
+		
+		if (tc.alive) {
+			batch.begin();
+			text.draw(batch, "Connected", 2, 25);
+			batch.end();
+		} else {
+			batch.begin();
+			text.draw(batch, "No connection!", 2, 25);
+			batch.end();
+		}
+		
+		if (System.currentTimeMillis() < tc.timeSpecialTextSet + hitMessageDuration) {
+			batch.begin();
+			text.draw(batch, tc.specialText, 2, 50);
+			batch.end();
+		}
 	}
 	
 	public Player playerByName(String name) {
@@ -395,5 +443,26 @@ public class GameLogic {
 				return p;
 		}
 		return null;
+	}
+	
+	public synchronized void resize(int width, int height) {
+		levelCam.viewportWidth = width;
+		levelCam.viewportHeight = height;
+		if (localPlayer == null) {
+			levelCam.position.setZero();
+			levelCam.translate(width / 2, height / 2);
+		} else {
+			levelCam.position.set(localPlayer.x, localPlayer.y, 0);
+		}
+		levelCam.update();
+		
+		hudCam.viewportWidth = width;
+		hudCam.viewportHeight = height;
+		hudCam.position.setZero();
+		hudCam.translate(width / 2, height / 2);
+		hudCam.update();
+		
+//		Entity.screen.width = width;
+//		Entity.screen.height = height;
 	}
 }

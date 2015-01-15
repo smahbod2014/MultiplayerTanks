@@ -27,7 +27,7 @@ public class Network {
 		String name;
 		float x;
 		float y;
-		int dir;
+		int angle;
 		int hp;
 	}
 	
@@ -35,7 +35,11 @@ public class Network {
 		int pid;
 		float x;
 		float y;
-		int dir;
+		float lastX;
+		float lastY;
+		float targetX;
+		float targetY;
+		int angle;
 	}
 	
 	public static class LeaveMessage {
@@ -44,15 +48,9 @@ public class Network {
 	
 	public static class BulletMessage {
 		int pid;
-		String name;
-		boolean newBullet;
-		float x;
-		float y;
-		int dir;
 	}
 	
 	public static class PlayerHitMessage {
-		int bIndex;
 		String shooterName;
 		String victimName;
 	}
@@ -60,14 +58,14 @@ public class Network {
 	public static class LoginResponseMessage {
 		float x;
 		float y;
-		int dir;
+		int angle;
 		int hp;
 		boolean success;
 	}
 	
 	public static class PlayerRevivedMessage {
 		int pid;
-		int dir;
+		int angle;
 		float x;
 		float y;
 	}
