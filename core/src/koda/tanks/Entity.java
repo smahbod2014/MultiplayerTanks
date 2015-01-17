@@ -1,5 +1,6 @@
 package koda.tanks;
 
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
@@ -42,6 +43,8 @@ public abstract class Entity {
 			this.sprite = new Sprite(sprite);
 			this.sprite.setX(x);
 			this.sprite.setY(y);
+//			if (this instanceof Player)
+//				this.sprite.setColor(Color.GREEN);
 		}
 	}
 	

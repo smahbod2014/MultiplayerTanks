@@ -24,8 +24,8 @@ public class TanksServer extends Listener {
 	GameLogic game;
 	Array<Vector2> positions = new Array<Vector2>();
 	HashMap<String, Integer> bots = new HashMap<String, Integer>();
-	String[] botNames = {"Max Bot", "Harry Bot", "Danny Bot", "Alex Bot"};
-	int[] botIds = {-1, -2, -3, -4};
+	String[] botNames = {"Max Bot", "Harry Bot", "Danny Bot", "Alex Bot", "Sam Bot", "Mike Bot", "Chris Bot"};
+	int[] botIds = {-1, -2, -3, -4, -5, -6, -7};
 	int nameId = 0;
 	
 	public TanksServer() {
@@ -46,7 +46,11 @@ public class TanksServer extends Listener {
 		
 		createBot();
 		createBot();
-//		createBot();
+		createBot();
+		createBot();
+		createBot();
+		createBot();
+		createBot();
 	}
 	
 	//uses random algorithm

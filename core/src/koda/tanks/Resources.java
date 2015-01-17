@@ -25,7 +25,7 @@ public class Resources {
 	public Resources(GameLogic game) {
 		this.game = game;
 		ShaderProgram.pedantic = false;
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < 10; i++) {
 			SpriteBatch psb = new SpriteBatch();
 			ShaderProgram shader = new ShaderProgram(Gdx.files.internal("shaders/flash.vsh"), Gdx.files.internal("shaders/flash.fsh"));
 			psb.setShader(shader);
