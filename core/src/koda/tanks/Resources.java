@@ -1,5 +1,6 @@
 package koda.tanks;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import com.badlogic.gdx.Gdx;
@@ -7,7 +8,9 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 
 public class Resources {
 
@@ -15,14 +18,24 @@ public class Resources {
 	private HashMap<String, Sprite> sprites = new HashMap<String, Sprite>();
 	private HashMap<String, Sound> sounds = new HashMap<String, Sound>();
 	private HashMap<String, BitmapFont> fonts = new HashMap<String, BitmapFont>();
+	private ArrayList<SpriteBatch> psbs = new ArrayList<SpriteBatch>();
+	private ArrayList<ShaderProgram> shaders = new ArrayList<ShaderProgram>();
 	private GameLogic game;
 	
 	public Resources(GameLogic game) {
 		this.game = game;
+		ShaderProgram.pedantic = false;
+		for (int i = 0; i < 5; i++) {
+			SpriteBatch psb = new SpriteBatch();
+			ShaderProgram shader = new ShaderProgram(Gdx.files.internal("shaders/flash.vsh"), Gdx.files.internal("shaders/flash.fsh"));
+			psb.setShader(shader);
+			psbs.add(psb);
+			shaders.add(shader);
+		}
 	}
 	
 	public void loadSound(String alias, String path) {
-		sounds.put(alias, Gdx.audio.newSound(Gdx.files.internal(path)));
+		sounds.put(alias, Gdx.audio.newSound(Gdx.files.internal("sounds/" + path)));
 	}
 	
 	public void loadAtlas(String path) {
@@ -52,5 +65,21 @@ public class Resources {
 	
 	public BitmapFont getFont(String name) {
 		return fonts.get(name);
+	}
+	
+	public SpriteBatch getFlashSpriteBatch() {
+		return psbs.remove(0);
+	}
+	
+	public ShaderProgram getFlashShader() {
+		return shaders.remove(0);
+	}
+	
+	public void replenishFlashSpriteBatch(SpriteBatch batch) {
+		psbs.add(batch);
+	}
+	
+	public void replenishFlashShader(ShaderProgram shader) {
+		shaders.add(shader);
 	}
 }

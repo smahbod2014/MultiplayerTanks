@@ -14,18 +14,21 @@ public class PlayScreen implements Screen {
 	final String name;
 	SpriteBatch batch;
 	GameLogic game;
+	String title;
 	
-	public PlayScreen(boolean isServer, String host, String name) {
-		Gdx.app.setLogLevel(Log.LEVEL_DEBUG);
+	public PlayScreen(boolean isServer, String host, String name, String title) {
 		this.host = host;
 		this.isServer = isServer;
 		this.name = name;
+		this.title = title;
 	}
 	
 	@Override
 	public void render(float dt) {
 		//input
 		game.input(dt);
+		if (isServer)
+			ts.game.botInput(dt);
 		
 		//update
 		game.update(dt);
@@ -34,6 +37,8 @@ public class PlayScreen implements Screen {
 		
 		//render
 		game.render(batch);
+		
+		Gdx.graphics.setTitle("FPS: " + Gdx.graphics.getFramesPerSecond() + " - " + title);
 	}
 
 	@Override

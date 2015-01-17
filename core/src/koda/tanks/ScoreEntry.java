@@ -7,13 +7,13 @@ public class ScoreEntry implements Comparable<ScoreEntry> {
 	
 	public String name;
 	public int score;
+	public int streak;
 	
-	public ScoreEntry(String name, int score) {
+	public ScoreEntry(String name, int score, int streak) {
 		this.name = name;
 		this.score = score;
+		this.streak = streak;
 	}
-	
-	public ScoreEntry() {}
 	
 	private String format() {
 		String s = name;

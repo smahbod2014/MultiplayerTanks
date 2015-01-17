@@ -3,6 +3,7 @@ package koda.tanks;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 
 public abstract class Entity {
@@ -106,6 +107,22 @@ public abstract class Entity {
 	
 	public boolean isWithin(float test, float against, float tolerance) {
 		return test >= against - tolerance && test <= against + tolerance;
+	}
+	
+	public boolean isWallInPath(float tx, float ty) {
+		float tempx = x;
+		float tempy = y;
+		while (tempx != x || tempy != y) {
+			for (Wall w : game.level.walls) {
+				if (w.x == tempx && w.y == tempy)
+					return true;
+			}
+			
+			tempx += MathUtils.cosDeg(angle) * TILESIZE;
+			tempy += MathUtils.sinDeg(angle) * TILESIZE;
+		}
+		
+		return false;
 	}
 	
 	public void input(float dt) {}

@@ -1,5 +1,9 @@
 package koda.tanks;
 
+import java.util.ArrayList;
+import java.util.PriorityQueue;
+import java.util.Queue;
+
 import koda.tanks.Network.BulletMessage;
 
 import com.badlogic.gdx.Gdx;
@@ -10,6 +14,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 
 public class Player extends Entity {
@@ -21,6 +26,7 @@ public class Player extends Entity {
 	public static final long FLASHING_TIME2 = 62;
 	public static final long ATTACKED_FLASH_TIME = 125;
 	public static final int MAX_HP = 10;
+	public static final int BOT_SHOOT_DISTANCE = 10;
 	public static final float SPEED = 150;
 	public static final float ROT_SPEED = 350;
 	public static final float DISTANCE_TO_MOVE = TILESIZE;
@@ -39,25 +45,39 @@ public class Player extends Entity {
 	public boolean inMotion;
 	public boolean invulnerable;
 	public boolean gotHit;
+	public boolean isBot;
 	
 	public SpriteBatch psb;
 	public ShaderProgram shader;
 	
-	public Player(GameLogic game, Sprite sprite, float x, float y, String name) {
+	public ArrayList<Vector2> path = new ArrayList<Vector2>();
+	public static final boolean BOT_DEBUG = false;
+	
+	public Player(GameLogic game, Sprite sprite, float x, float y, String name, boolean isBot) {
 		super(game, sprite, x, y);
 		this.name = name;
+		targetX = x;
+		targetY = y;
+		lastX = x;
+		lastY = y;
+		this.isBot = isBot;
 		bullets = new Array<Bullet>();
-		timers.addTimer("shooting", SHOOT_TIME);
+		if (!isBot)
+			timers.addTimer("shooting", SHOOT_TIME);
+		else
+			timers.addTimer("shooting", SHOOT_TIME * 2);
 		timers.addTimer("dead", DEAD_TIME);
 		timers.addTimer("flashing", FLASHING_TIME);
 		timers.addTimer("flashing2", FLASHING_TIME2);
 		timers.addTimer("respawning", RESPAWN_INVULN_TIME);
 		
 		if (!game.isServer) {
-			psb = new SpriteBatch();
-			ShaderProgram.pedantic = false;
-			shader = new ShaderProgram(Gdx.files.internal("shaders/flash.vsh"), Gdx.files.internal("shaders/flash.fsh"));
-			psb.setShader(shader);
+//			psb = new SpriteBatch();
+//			ShaderProgram.pedantic = false;
+//			shader = new ShaderProgram(Gdx.files.internal("shaders/flash.vsh"), Gdx.files.internal("shaders/flash.fsh"));
+//			psb.setShader(shader);
+			psb = game.res.getFlashSpriteBatch();
+			shader = game.res.getFlashShader();
 		}
 	}
 	
@@ -86,6 +106,8 @@ public class Player extends Entity {
 	}
 	
 	public boolean canMove() {
+//		if (isBot) return false;
+		
 		float nx = bounds().x + TILESIZE * MathUtils.cosDeg(angle);
 		float ny = bounds().y + TILESIZE * MathUtils.sinDeg(angle);
 		Rectangle tmp = new Rectangle(nx, ny, bounds().width, bounds().height);
@@ -101,7 +123,7 @@ public class Player extends Entity {
 			if (p == this || !p.alive)
 				continue;
 			
-			if (nx == p.x && ny == p.y)
+			if (nx == p.targetX && ny == p.targetY)
 				return false;
 			
 			if (nx == p.lastX && ny == p.lastY)
@@ -128,6 +150,8 @@ public class Player extends Entity {
 		hp = MAX_HP;
 		lastX = x;
 		lastY = y;
+		targetX = x;
+		targetY = y;
 		timers.reset("respawning");
 		timers.setCount(0);
 		invulnerable = true;
@@ -144,24 +168,118 @@ public class Player extends Entity {
 	
 	@Override
 	public void input(float dt) {
-		//shooting
-		if (alive && timers.finished("shooting") && Gdx.input.isKeyPressed(Keys.SPACE)) {
-			timers.reset("shooting");
-			addBullet(x, y, angle, name);
-			BulletMessage msg = new BulletMessage();
-			game.tc.client.sendTCP(msg);
-			//move this sound later, should be together with onBulletFired() in GameLogic
-			game.res.playSound("shoot", game.volume);
+		boolean signalSpace = Gdx.input.isKeyPressed(Keys.SPACE);
+		boolean signalUp = Gdx.input.isKeyPressed(Keys.W) || Gdx.input.isKeyPressed(Keys.UP);
+		boolean signalLeft = Gdx.input.isKeyPressed(Keys.A) || Gdx.input.isKeyPressed(Keys.LEFT);
+		boolean signalDown = Gdx.input.isKeyPressed(Keys.S) || Gdx.input.isKeyPressed(Keys.DOWN);
+		boolean signalRight = Gdx.input.isKeyPressed(Keys.D) || Gdx.input.isKeyPressed(Keys.RIGHT);
+		signalSpace &= !isBot;
+		signalUp &= !isBot;
+		signalLeft &= !isBot;
+		signalDown &= !isBot;
+		signalRight &= !isBot;
+		
+		if (isBot) {
+			//use leastDist for some interesting results
+//			float leastDist = Float.MAX_VALUE;
+			int bestSize = -1;
+			Vector2 next = null;
+			Player target = null;
+			ArrayList<Vector2> path = null;
+			for (Player p : game.players.values()) {
+				if (p == this || !p.alive)
+					continue;
+				
+//				float dist = (float) Math.hypot(p.x - x, p.y - y);
+				if (target == null) {
+					next = game.level.calculateShortestPath(this, p);
+					bestSize = game.level.graphPath.size() - 1;
+					target = p;
+					path = new ArrayList<Vector2>();
+					for (Vector2 v : game.level.graphPath) {
+						path.add(new Vector2(v));
+					}
+				} else {
+					Vector2 maybenext = game.level.calculateShortestPath(this, p);
+					int size = game.level.graphPath.size() - 1;
+					if (size < bestSize) {
+						bestSize = size;
+						next = maybenext;
+						target = p;
+						path.clear();
+						for (Vector2 v : game.level.graphPath) {
+							path.add(new Vector2(v));
+						}
+					}
+				}
+			}
+			
+//			target = game.playerByName("Bob");
+
+			
+			if (target != null && target.alive) {
+//				Log.info("Bot is calculating...");
+//				if (game.level.distanceAway(this, target) > 1)
+//				Vector2 next = game.level.calculateShortestPath(this, target);
+//				path = game.level.graphPath;
+				boolean allX = true;
+				for (Vector2 v : path) {
+					for (Vector2 v2 : path) {
+						if (v != v2 && v.x != v2.x) {
+							allX = false;
+							break;
+						}
+					}
+				}
+				
+				boolean allY = true;
+				for (Vector2 v : path) {
+					for (Vector2 v2 : path) {
+						if (v != v2 && v.y != v2.y) {
+							allY = false;
+							break;
+						}
+					}
+				}
+				
+				if (allX) {
+//					Log.info("All x!");
+					if (bestSize <= BOT_SHOOT_DISTANCE) {
+						signalSpace = true;
+						signalUp = y < next.y && angle != UP;
+						signalDown = y > next.y && angle != DOWN;
+						
+					}
+				}
+				
+				if (allY) {
+//					Log.info("All y!");
+					if (bestSize <= BOT_SHOOT_DISTANCE) {
+						signalSpace = true;
+						signalLeft = x > next.x && angle != LEFT;
+						signalRight = x < next.x && angle != RIGHT;
+					}
+				}
+				
+				if (bestSize > BOT_SHOOT_DISTANCE || (!allX && !allY)) {
+					signalUp = y < next.y;
+					signalLeft = x > next.x;
+					signalDown = y > next.y;
+					signalRight = x < next.x;
+				}
+			}
 		}
 		
-		if (Gdx.input.isKeyJustPressed(Keys.Z)) {
+		
+		
+		if (!isBot && Gdx.input.isKeyJustPressed(Keys.Z)) {
 			System.out.println(this);
 		}
 		
 		//movement version 1
 		//W - up, A - left, S - down, D - right
 		if (alive && !inMotion) {
-			if (Gdx.input.isKeyPressed(Keys.W) || Gdx.input.isKeyPressed(Keys.UP)) {
+			if (signalUp) {
 				//setting lastX/Y here likely useless, see canMove() for why
 				lastY = y;
 				angle = UP;
@@ -169,26 +287,40 @@ public class Player extends Entity {
 					inMotion = true;
 			}
 			
-			else if (Gdx.input.isKeyPressed(Keys.A) || Gdx.input.isKeyPressed(Keys.LEFT)) {
+			else if (signalLeft) {
 				lastX = x;
 				angle = LEFT;
 				if (canMove())
 					inMotion = true;
 			}
 			
-			else if (Gdx.input.isKeyPressed(Keys.S) || Gdx.input.isKeyPressed(Keys.DOWN)) {
+			else if (signalDown) {
 				lastY = y;
 				angle = DOWN;
 				if (canMove())
 					inMotion = true;
 			}
 			
-			else if (Gdx.input.isKeyPressed(Keys.D) || Gdx.input.isKeyPressed(Keys.RIGHT)) {
+			else if (signalRight) {
 				lastX = x;
 				angle = RIGHT;
 				if (canMove())
 					inMotion = true;
 				//THIS SYSTEM ISN'T PERFECT. FIX IT
+			}
+		}
+		
+		//shooting
+		if (alive && timers.finished("shooting") && signalSpace) {
+			timers.reset("shooting");
+			addBullet(x, y, angle, name);
+			BulletMessage msg = new BulletMessage();
+			if (!game.isServer) {
+				game.tc.client.sendTCP(msg);
+				game.res.playSound("shoot", game.volume);
+			} else {
+				msg.pid = game.ts.bots.get(name);
+				game.ts.server.sendToAllTCP(msg);
 			}
 		}
 	}
@@ -244,15 +376,17 @@ public class Player extends Entity {
 			x += dt * SPEED * MathUtils.cosDeg(angle);
 			y += dt * SPEED * MathUtils.sinDeg(angle);
 			distAccum += (float) Math.hypot(x - tx, y - ty);
-			//temporary
 			
 			if (distAccum >= DISTANCE_TO_MOVE) {
 				distAccum = 0;
-				x = normalize(x);
-				y = normalize(y);
+//				x = normalize(x);
+//				y = normalize(y);
+				x = lastX + MathUtils.cosDeg(angle) * DISTANCE_TO_MOVE;
+				y = lastY + MathUtils.sinDeg(angle) * DISTANCE_TO_MOVE;
 				lastX = x;
 				lastY = y;
 				inMotion = false;
+					
 			}
 			
 			if (!game.isServer) {
@@ -296,6 +430,17 @@ public class Player extends Entity {
 		nameTag.draw(batch, name, nameX, nameY);
 		hpTag.draw(batch, hpString, hpX, hpY);
 		batch.end();
+		
+//		if (BOT_DEBUG) {
+//			int cx = (int) ((x + 1 - game.level.offX) / Entity.TILESIZE);
+//			int cy = (int) ((y + 1 - game.level.offY) / Entity.TILESIZE);
+//			String coords = "(" + cx + ", " + cy + ")";
+//			float coordX = x + TILESIZE / 2 - hpTag.getBounds(coords).width / 2;
+//			float coordY = y + 3f * TILESIZE;
+//			batch.begin();
+//			hpTag.draw(batch, coords, coordX, coordY);
+//			batch.end();
+//		}
 	}
 	
 	@Override

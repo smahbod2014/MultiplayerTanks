@@ -8,9 +8,18 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
+//TODO: turn this class into a map of entries, not a list, for easier lookup instead of loops in every method
 public class Scoreboard {
-
+	
 	public static final float HEIGHT = 25;
+	public static final int KILLING_SPREE = 3;
+	public static final int DOMINATING = 4;
+	public static final int MEGA_KILL = 5;
+	public static final int UNSTOPPABLE = 6;
+	public static final int WICKED_SICK = 7;
+	public static final int MONSTER_KILL = 8;
+	public static final int GODLIKE = 9;
+	public static final int HOLY_SHIT = 10;
 	
 //	Array<ScoreEntry> entries = new Array<ScoreEntry>();
 	ArrayList<ScoreEntry> entries = new ArrayList<ScoreEntry>();
@@ -29,8 +38,8 @@ public class Scoreboard {
 	
 	public Scoreboard() {}
 	
-	public void addEntry(String name, int score) {
-		entries.add(new ScoreEntry(name, score));
+	public void addEntry(String name, int score, int streak) {
+		entries.add(new ScoreEntry(name, score, streak));
 		Collections.sort(entries);
 	}
 	
@@ -38,11 +47,13 @@ public class Scoreboard {
 		for (ScoreEntry s : entries) {
 			if (s.name.equals(name)) {
 				s.score += score;
+				s.streak++;
 				Collections.sort(entries);
 			}
 		}
 	}
 	
+	//not used?
 	public void updateEntrySet(String name, int score) {
 		for (ScoreEntry s : entries) {
 			if (s.name.equals(name)) {
@@ -66,6 +77,26 @@ public class Scoreboard {
 		}
 		
 		return -1;
+	}
+	
+	public int getStreak(String name) {
+		for (int i = entries.size() - 1; i >= 0; i--) {
+			if (entries.get(i).name.equals(name)) {
+				int streak = entries.get(i).streak;
+				if (streak >= HOLY_SHIT)
+					streak = HOLY_SHIT;
+				return streak;
+			}
+		}
+		
+		return -1;
+	}
+	
+	public void setStreak(String name, int streak) {
+		for (int i = entries.size() - 1; i >= 0; i--) {
+			if (entries.get(i).name.equals(name))
+				entries.get(i).streak = streak;
+		}
 	}
 	
 	public void render(SpriteBatch batch) {

@@ -30,6 +30,8 @@ public class Network {
 		int angle;
 		int hp;
 		int score;
+		int streak;
+		boolean isBot;
 	}
 	
 	public static class PositionMessage {

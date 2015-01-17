@@ -12,6 +12,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
@@ -26,16 +27,16 @@ public class MenuScreen implements Screen {
 	Stage stage;
 	Skin skin;
 	TextField tf;
-	int nameIndex;
+	int nameIndex = 0;
+	String title = "Multiplayer Tanks - " + names[nameIndex];
 	
 	public MenuScreen(Tanks game) {
 		this.game = game;
-		Gdx.graphics.setTitle("Multiplayer Tanks - " + names[nameIndex]);
+		Gdx.graphics.setTitle(title);
 //		stage = new Stage();
 //		skin = new Skin(new TextureAtlas(Gdx.files.internal("tanks_pack.pack")));
 //		tf = new TextField("localhost", skin);
 //		stage.addActor(tf);
-		
 	}
 	
 	@Override
@@ -48,7 +49,7 @@ public class MenuScreen implements Screen {
 		
 		if (Gdx.input.isKeyJustPressed(Keys.SPACE)) {
 //			Gdx.graphics.setTitle("Multiplayer Tanks - " + names[nameIndex] + " (Server)");
-			game.setScreen(new PlayScreen(true, "localhost", names[nameIndex]));
+			
 			try {
 				Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
 				while (interfaces.hasMoreElements()) {
@@ -59,13 +60,17 @@ public class MenuScreen implements Screen {
 					Enumeration<InetAddress> addresses = iface.getInetAddresses();
 					while (addresses.hasMoreElements()) {
 						String ip = addresses.nextElement().getHostAddress();
-						if (ip.indexOf("128") == 0)
-							Gdx.graphics.setTitle("Multiplayer Tanks - " + names[nameIndex] + " (" + ip + ")");
+						if (ip.indexOf("128") == 0) {
+							title = "Multiplayer Tanks - " + names[nameIndex] + " (" + ip + ")";
+							Gdx.graphics.setTitle(title);
+						}
 					}
 				}
 			} catch (SocketException e) {
 				e.printStackTrace();
 			}
+			
+			game.setScreen(new PlayScreen(true, "localhost", names[nameIndex], title));
 		}
 		
 		if (Gdx.input.isKeyJustPressed(Keys.M)) {
@@ -75,7 +80,8 @@ public class MenuScreen implements Screen {
 		
 		if (Gdx.input.isKeyJustPressed(Keys.L)) {
 			nameIndex = (nameIndex + 1) % names.length;
-			Gdx.graphics.setTitle("Multiplayer Tanks - " + names[nameIndex]);
+			title = "Multiplayer Tanks - " + names[nameIndex];
+			Gdx.graphics.setTitle(title);
 		}
 		
 //		stage.draw();
@@ -86,13 +92,18 @@ public class MenuScreen implements Screen {
 		client.start();
 		InetAddress found = client.discoverHost(Network.udpPort, 5000);
 		if (found == null) {
-			System.out.println("No server found. Starting game as the server");
+			System.out.println("No server found. Enter an ip.");
 //			game.setScreen(new PlayScreen(true, "localhost", names[nameIndex]));
 			String ip = JOptionPane.showInputDialog(null, "Input ip:", "Join server", JOptionPane.INFORMATION_MESSAGE);
-			game.setScreen(new PlayScreen(false, ip, names[nameIndex]));
+			if (ip == null) {
+				client.close();
+				client.stop();
+				return;
+			}
+			game.setScreen(new PlayScreen(false, ip, names[nameIndex], title));
 		} else {
 			System.out.println("Server found! Connecting as a client");
-			game.setScreen(new PlayScreen(false, found.getHostAddress(), names[nameIndex]));
+			game.setScreen(new PlayScreen(false, found.getHostAddress(), names[nameIndex], title));
 		}
 		client.close();
 		client.stop();

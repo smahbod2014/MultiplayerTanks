@@ -3,11 +3,15 @@ package koda.tanks;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.PriorityQueue;
+import java.util.Queue;
 
 import javax.imageio.ImageIO;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
@@ -28,6 +32,11 @@ public class Level {
 	public static final int CAMERA_TILES_IN_X = 8;
 	public static final int CAMERA_TILES_IN_Y = 6;
 	
+	BitmapFont f = new BitmapFont();
+	{
+		f.setScale(.75f);
+	}
+	
 	public float offX;
 	public float offY;
 	
@@ -36,8 +45,11 @@ public class Level {
 	public int width;
 	public int height;
 	
+	public Node[][] nodes;
+	
 	public Array<Wall> walls = new Array<Wall>();
 	public Array<Vector2> positions = new Array<Vector2>();
+	public ArrayList<Vector2> graphPath = new ArrayList<Vector2>();
 	public GameLogic game;
 	
 	public Level(GameLogic game) {
@@ -68,6 +80,7 @@ public class Level {
 						id++;
 						walls.add(w);
 						level[x][y] = wall;
+//						Log.info("Adding wall at x = " + x + ", y = " + y);
 					} else if ((px & 0xFF0000) >> 16 == SPAWN) {
 						positions.add(new Vector2(x * Entity.TILESIZE + offX, y * Entity.TILESIZE + offY));
 						level[x][y] = spawn;
@@ -75,8 +88,10 @@ public class Level {
 				}
 			}
 			
+			createNodeGraph();
 			long elapsed = System.currentTimeMillis() - now;
 			Log.info("Generated the map in " + elapsed / 1000.0 + " seconds");
+			
 			
 			
 			Entity.screen.x = offX;
@@ -127,36 +142,115 @@ public class Level {
 		game.levelCam.update();
 	}
 	
-//	public void createSampleLevel() {
-//		level = new int[10][10];
-//		level[0] = new int[] {w,w,w,w,w,w,w,w,w,w};
-//		level[1] = new int[] {w,f,f,f,f,f,f,f,f,w};
-//		level[2] = new int[] {w,f,w,w,f,f,w,w,f,w};
-//		level[3] = new int[] {w,f,w,w,f,f,w,w,f,w};
-//		level[4] = new int[] {w,f,f,f,f,f,f,f,f,w};
-//		level[5] = new int[] {w,f,f,f,f,f,f,f,f,w};
-//		level[6] = new int[] {w,f,w,w,f,f,w,w,f,w};
-//		level[7] = new int[] {w,f,w,w,f,f,w,w,f,w};
-//		level[8] = new int[] {w,f,f,f,f,f,f,f,f,w};
-//		level[9] = new int[] {w,w,w,w,w,w,w,w,w,w};
-//		createLevel(level);
-//	}
+	private void createNodeGraph() {
+		int index = 0;
+		nodes = new Node[level.length][level[0].length];
+		for (int row = 0; row < level.length; row++) {
+			for (int col = 0; col < level[row].length; col++) {
+				//this line is the most annoying shit and I hate it...
+				nodes[row][col] = new Node(level[col][row], row, col, index++);
+			}
+		}
+		
+		int added = 0;
+		for (int row = 0; row < nodes.length; row++) {
+			for (int col = 0; col < nodes[row].length; col++) {
+				Node n = nodes[row][col];
+				for (int y = -1; y <= 1; y++) {
+					for (int x = -1; x <= 1; x++) {
+						if (Math.abs(x) == Math.abs(y))
+							continue;
+						
+						try {
+							Node nbr = nodes[row + y][col + x];
+							if (nbr.type != wall) {
+								n.addNeighbor(nbr);
+								added++;
+							}
+						} catch (IndexOutOfBoundsException e) {}
+					}
+				}
+			}
+		}
+		
+		Log.info("Level created " + nodes.length * nodes[0].length + " nodes and added a total of " + added + " neighbors");
+	}
 	
-//	public void createLevel(int[][] m) {
-//		walls.clear();
-//		level = m;
-//		int id = 1;
-//		for (int i = 0; i < level.length; i++) {
-//			for (int j = 0; j < level[i].length; j++) {
-//				if (level[i][j] == w) {
-//					Wall wa = new Wall(game, new Sprite(wall), j * Entity.TILESIZE + offX, i * Entity.TILESIZE + offY);
-//					wa.id = id;
-//					walls.add(wa);
-//					id++;
-//				}
-//			}
-//		}
-//	}
+	public Vector2 calculateShortestPath(Player chaser, Player target) {
+		int cx = (int) ((chaser.x + 1 - offX) / Entity.TILESIZE);
+		int cy = (int) ((chaser.y + 1 - offY) / Entity.TILESIZE);
+		int tx = (int) ((target.x + 1 - offX) / Entity.TILESIZE);
+		int ty = (int) ((target.y + 1 - offY) / Entity.TILESIZE);
+		
+//		Log.info("cx = " + cx + ", cy = " + cy + ", tx = " + tx + ", ty = " + ty);
+		
+		Node start = nodes[cy][cx];
+		Node goal = nodes[ty][tx];
+		Queue<Node> frontier = new PriorityQueue<Node>();
+		frontier.add(start);
+
+		Node[] cf = new Node[nodes.length * nodes[0].length];
+		cf[start.index] = null;
+		int[] costs = new int[nodes.length * nodes[0].length];
+		for (int i = 0; i < costs.length; i++)
+			costs[i] = -1;
+		costs[start.index] = 0;
+		
+//		Log.info("Starting algorithm");
+		while (!frontier.isEmpty()) {
+			Node curr = frontier.poll();
+			if (curr == goal) {
+//				Log.info("Algorithm found victim at " + curr);
+				break;
+			}
+			
+			for (Node neighbor : curr.neighbors) {
+				int newCost = costs[curr.index] + 1;
+				if (costs[neighbor.index] == -1 || newCost < costs[neighbor.index]) {
+					costs[neighbor.index] = newCost;
+					int priority = newCost + heuristic(goal, neighbor);
+					neighbor.priority = priority;
+					frontier.add(neighbor);
+					cf[neighbor.index] = curr;
+				}
+			}
+		}
+		
+		ArrayList<Node> path = new ArrayList<Node>();
+		
+		Node current = goal;
+		path.add(current);
+		while (current != start) {
+			current = cf[current.index];
+			if (current == null) {
+				Log.info("current was null. Path size was: " + path.size());
+				break;
+			}
+			path.add(current);
+		}
+		
+		//the last node in path is the chaser
+		//the first node in path is the victim
+		
+//		path.remove(path.size() - 1);
+		
+		graphPath.clear();
+		for (Node n : path) {
+			graphPath.add(new Vector2(n.col * Entity.TILESIZE + offX, n.row * Entity.TILESIZE + offY));
+		}
+		
+//		Log.info("Done filling graphPath. Path size is " + graphPath.size());
+		
+		if (path.size() == 1)
+			return new Vector2(cx * Entity.TILESIZE + offX, cy * Entity.TILESIZE + offY);
+		
+		Node result = path.get(path.size() - 2);
+		return new Vector2(result.col * Entity.TILESIZE + offX, result.row * Entity.TILESIZE + offY);
+	}
+	
+	public int heuristic(Node a, Node b) {
+		return Math.abs(a.col - b.col) + Math.abs(a.row - b.row);
+	}
 	
 	public void render(SpriteBatch batch) {
 		batch.begin();
@@ -168,6 +262,23 @@ public class Level {
 			}
 		}
 		batch.end();
+		
+//		if (Player.BOT_DEBUG) {
+//			batch.begin();
+//			for (int row = 0; row < nodes.length; row++) {
+//				for (int col = 0; col < nodes[row].length; col++) {
+//					Node n = nodes[row][col];
+//					if (n.type == wall)
+//						continue;
+//					
+//					float ts = Entity.TILESIZE;
+//					float tx = n.col * ts + offX + f.getBounds(Integer.toString(n.index)).width / 2;
+//					float ty = n.row * ts + offY + ts - f.getBounds(Integer.toString(n.index)).height / 2;
+//					f.draw(batch, Integer.toString(n.index), tx, ty);
+//				}
+//			}
+//			batch.end();
+//		}
 		
 		for (Wall wall : walls) {
 			wall.render(batch);
@@ -197,6 +308,7 @@ public class Level {
 			float camBot = offY + CAMERA_TILES_IN_Y * ts;
 			float width = this.width * ts - 2 * CAMERA_TILES_IN_X * ts;
 			float height = this.height * ts - 2 * CAMERA_TILES_IN_Y * ts;
+			game.sr.setProjectionMatrix(game.levelCam.combined);
 			game.sr.begin(ShapeType.Line);
 			game.sr.box(camLeft, camBot, 0, width, height, 0);
 			game.sr.end();

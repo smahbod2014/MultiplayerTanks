@@ -20,8 +20,8 @@ import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.Vector2;
-import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 
 public class GameLogic {
@@ -30,8 +30,11 @@ public class GameLogic {
 	HashMap<Integer, Player> players = new HashMap<Integer, Player>();
 	String[] spriteAliases = {"tank", "bullet", "testbullet"};
 	String[] spriteNames = {"tanks_tank", "tanks_bullet", "testmissile"};
-	String[] soundAliases = {"shoot", "hit", "bcollide", "death"};
-	String[] soundNames = {"tanks_shoot.wav", "tanks_hit.wav", "tanks_bullet_collide.wav", "tanks_death.wav"};
+	String[] soundAliases = {"shoot", "hit", "bcollide", "death", "streak1", "streak2", "streak3", "streak4", "streak5",
+			"streak6", "streak7", "streak8"};
+	String[] soundNames = {"tanks_shoot.wav", "tanks_hit.wav", "tanks_bullet_collide.wav", "tanks_death.wav",
+			"tanks_killing_spree.mp3", "tanks_dominating.mp3", "tanks_mega_kill.mp3", "tanks_unstoppable.mp3",
+			"tanks_wicked_sick.mp3", "tanks_monster_kill.mp3", "tanks_godlike.mp3", "tanks_holy_shit.mp3"};
 	String fontName = "comicsans.fnt";
 	String[] fontAliases = {"nametag", "hptag", "text"};
 	boolean isServer;
@@ -59,6 +62,8 @@ public class GameLogic {
 		
 		sr = new ShapeRenderer();
 		
+		info("Loading resources...");
+		long now = System.currentTimeMillis();
 		res = new Resources(this);
 		for (int i = 0; i < soundAliases.length; i++) {
 			res.loadSound(soundAliases[i], soundNames[i]);
@@ -73,12 +78,15 @@ public class GameLogic {
 			res.loadFont(fontAliases[i], fontName);
 		}
 		
+		long elapsed = System.currentTimeMillis() - now;
+		info("Done loading resources. (" + (elapsed / 1000.0) + " seconds)");
+		
 		res.getFont("hptag").setScale(.5f);
 		
 		levelCam = new OrthographicCamera();
 		hudCam = new OrthographicCamera();
 		
-		localPlayer = new Player(this, res.getSprite("tank"), 0, 0, tc.name);
+		localPlayer = new Player(this, res.getSprite("tank"), 0, 0, tc.name, false);
 		
 		initCommon();
 	}
@@ -97,9 +105,18 @@ public class GameLogic {
 		level.createLevel("tanks_level1.png");
 	}
 	
+	public synchronized void botInput(float dt) {
+		if (isServer) {
+			for (Player p : players.values()) {
+				if (p.isBot && p.alive)
+					p.input(dt);
+			}
+		}
+	}
+	
 	public synchronized void input(float dt) {
 		//client not ready?
-		if (localPlayer == null)
+		if (!isServer && localPlayer == null)
 			return;
 		
 		if (Gdx.input.isKeyJustPressed(Keys.C)) {
@@ -201,6 +218,27 @@ public class GameLogic {
 				tc.client.sendUDP(msg);
 			}
 		}
+		
+		//send bot data to players
+		if (isServer) {
+			for (Map.Entry<Integer, Player> e : players.entrySet()) {
+				Player p = e.getValue();
+				if (p.isBot && p.changedPosAngle()) {
+					PositionMessage msg = new PositionMessage();
+					msg.pid = e.getKey();
+					msg.x = p.x;
+					msg.y = p.y;
+					msg.angle = p.angle;
+					msg.lastX = p.lastX;
+					msg.lastY = p.lastY;
+					msg.targetX = p.targetX;
+					msg.targetY = p.targetY;
+					p.cleanPosAngle();
+					ts.server.sendToAllUDP(msg);
+//					info("Sending information about " + p.name + " (" + msg.pid + ") to everyone");
+				}
+			}
+		}
 	}
 	
 	/**
@@ -222,6 +260,9 @@ public class GameLogic {
 		Player victim = playerByName(msg.victimName);
 		victim.hit(1);
 		
+		if (!victim.alive)
+			scores.updateEntryAdd(msg.shooterName, 1);
+		
 		if (!isServer) {
 			if (victim.alive) {
 				tc.specialText = "";
@@ -230,12 +271,21 @@ public class GameLogic {
 			else {
 				tc.specialText = msg.shooterName + " killed " + victim.name + "!";
 				res.playSound("death", volume);
+				switch (scores.getStreak(msg.shooterName)) {
+				case Scoreboard.KILLING_SPREE: res.playSound("streak1", volume); break;
+				case Scoreboard.DOMINATING: res.playSound("streak2", volume); break;
+				case Scoreboard.MEGA_KILL: res.playSound("streak3", volume); break;
+				case Scoreboard.UNSTOPPABLE: res.playSound("streak4", volume); break;
+				case Scoreboard.WICKED_SICK: res.playSound("streak5", volume); break;
+				case Scoreboard.MONSTER_KILL: res.playSound("streak6", volume); break;
+				case Scoreboard.GODLIKE: res.playSound("streak7", volume); break;
+				case Scoreboard.HOLY_SHIT: res.playSound("streak8", volume); break;
+				}
+				
+				scores.setStreak(msg.victimName, 0);
 			}
 			tc.timeSpecialTextSet = System.currentTimeMillis();
 		}
-		
-		if (!victim.alive)
-			scores.updateEntryAdd(msg.shooterName, 1);
 	}
 	
 	/**
@@ -244,6 +294,9 @@ public class GameLogic {
 	 */
 	public synchronized void onBulletFired(BulletMessage msg) {
 		Player shooter = players.get(msg.pid);
+		if (shooter == null)
+			return;
+		
 		shooter.addBullet(shooter.x, shooter.y, shooter.angle, shooter.name);
 		
 		if (!isServer)
@@ -281,13 +334,18 @@ public class GameLogic {
 //		info("Removing " + p.name + " (" + msg.pid + ")");
 		players.remove(msg.pid);
 		scores.removeEntry(p.name);
+		
+		if (!isServer) {
+			res.replenishFlashSpriteBatch(p.psb);
+			res.replenishFlashShader(p.shader);
+		}
 	}
 	
 	/**
 	 * Called by both server and client
 	 * @param msg
 	 */
-	public synchronized void onNewPlayer(final NewPlayerMessage msg) {
+	public synchronized void onNewPlayer(NewPlayerMessage msg) {
 		//there's already someone with this name
 		if (isServer) {
 			if (playerByName(msg.name) != null) {
@@ -296,57 +354,71 @@ public class GameLogic {
 				ts.server.sendToTCP(msg.pid, response);
 				return;
 			} else {
-				LoginResponseMessage response = new LoginResponseMessage();
-				response.x = msg.x;
-				response.y = msg.y;
-				response.angle = msg.angle;
-				response.hp = msg.hp;
-				response.success = true;
-				ts.server.sendToTCP(msg.pid, response);
+				if (!msg.isBot) {
+					LoginResponseMessage response = new LoginResponseMessage();
+					response.x = msg.x;
+					response.y = msg.y;
+					response.angle = msg.angle;
+					response.hp = msg.hp;
+					response.success = true;
+					ts.server.sendToTCP(msg.pid, response);
+				}
 			}
 		}
 		
-		final GameLogic g = this;
-		Gdx.app.postRunnable(new Runnable() {
-			public void run() {
-				//otherwise we're good
-				Sprite spr = res == null ? null : res.getSprite("tank");
-				Player newPlayer = new Player(g, spr, msg.x, msg.y, msg.name);
-				//probably make dir a setter
-				newPlayer.angle = msg.angle;
-				newPlayer.hp = msg.hp;
-				players.put(msg.pid, newPlayer);
-				
-				scores.addEntry(msg.name, msg.score);
-				
-//				if (isServer)
-//					Log.info("Server added player " + newPlayer.name);
-//				else
-//					Log.info(tc.name + " added player " + newPlayer.name);
-			}
-		});
+		//-----
 		
+		Sprite spr = res == null ? null : res.getSprite("tank");
+		Player newPlayer = new Player(this, spr, msg.x, msg.y, msg.name, msg.isBot);
+		info("New player! " + newPlayer);
+		//probably make dir a setter
+		newPlayer.angle = msg.angle;
+		newPlayer.hp = msg.hp;
+		players.put(msg.pid, newPlayer);
 		
+		scores.addEntry(msg.name, msg.score, msg.streak);
+		
+//		if (isServer) {
+//			info("Server added player " + newPlayer.name);
+//		}
+//		else
+//			info(tc.name + " added player " + newPlayer.name);
+		
+		//----
 		
 		
 		if (isServer) {
 			//tell everyone about this new player
+			if (msg.isBot)
+				info("Telling everyone about " + msg.name);
 			ts.server.sendToAllExceptTCP(msg.pid, msg);
 			
 			//tell this new player about everyone else
 			//alternatively, just loop through the players map...instead of getting connections
-			for (Connection con : ts.server.getConnections()) {
-				if (con.getID() != msg.pid) {
-					NewPlayerMessage previousPlayer = new NewPlayerMessage();
-					Player e = players.get(con.getID());
-					previousPlayer.name = e.name;
-					previousPlayer.pid = con.getID();
-					previousPlayer.x = e.x; 
-					previousPlayer.y = e.y;
-					previousPlayer.angle = e.angle;
-					previousPlayer.hp = e.hp;
-					previousPlayer.score = scores.getScore(e.name);
-					ts.server.sendToTCP(msg.pid, previousPlayer);
+			
+			//however, if we're a bot, we already know about everyone else
+			if (!msg.isBot) {
+//				for (Connection con : ts.server.getConnections()) {
+//					if (con.getID() != msg.pid) {
+				info("There are currently " + players.values().size() + " players");
+				for (Map.Entry<Integer, Player> e : players.entrySet()) {
+					int id = e.getKey();
+					Player p = e.getValue();
+					if (id != msg.pid) {
+						NewPlayerMessage previousPlayer = new NewPlayerMessage();
+//						Player e = players.get(con.getID());
+						previousPlayer.name = p.name;
+						previousPlayer.pid = id;
+						previousPlayer.x = p.x; 
+						previousPlayer.y = p.y;
+						previousPlayer.angle = p.angle;
+						previousPlayer.hp = p.hp;
+						previousPlayer.isBot = p.isBot;
+						previousPlayer.score = scores.getScore(p.name);
+						previousPlayer.streak = scores.getStreak(p.name);
+						info("Sending previous player data about " + p.name + " to " + msg.name);
+						ts.server.sendToTCP(msg.pid, previousPlayer);
+					}
 				}
 			}
 		}
@@ -371,17 +443,16 @@ public class GameLogic {
 			return;
 		}
 		
-//		localPlayer = new Player(this, sprites.get("tank"), msg.x, msg.y, tc.name);
 		localPlayer.angle = msg.angle;
 		localPlayer.hp = msg.hp;
-		localPlayer.x = msg.x;
-		localPlayer.y = msg.y;
+		localPlayer.x = localPlayer.lastX = localPlayer.targetX = msg.x;
+		localPlayer.y = localPlayer.lastY = localPlayer.targetY = msg.y;
 		players.put(tc.id, localPlayer);
-		scores.addEntry(tc.name, 0);
+		scores.addEntry(tc.name, 0, 0);
 		scores.localPlayerName = tc.name;
 		levelCam.position.set(msg.x, msg.y, 0);
 		levelCam.update();
-		Log.info(tc.name + " has been instantiated");
+		info(tc.name + " has been instantiated");
 	}
 	
 	
@@ -412,6 +483,35 @@ public class GameLogic {
 		for (Player p : players.values()) {
 			if (p.alive)
 				p.drawTags(res.getFont("nametag"), res.getFont("hptag"), batch);
+		}
+		
+		if (Player.BOT_DEBUG) {
+//			Player 
+//			if (p != null && p.alive && p.target != null) {
+//				level.calculateShortestPath(p, p.target);
+//				sr.setProjectionMatrix(levelCam.combined);
+//				sr.begin(ShapeType.Line);
+//				for (int i = 0; i < level.graphPath.size() - 1; i++) {
+//					Vector2 v1 = level.graphPath.get(i);
+//					Vector2 v2 = level.graphPath.get(i + 1);
+//					sr.line(v1.x + Entity.TILESIZE / 2, v1.y + Entity.TILESIZE / 2, v2.x + Entity.TILESIZE / 2, v2.y + Entity.TILESIZE / 2);
+//				}
+//				sr.end();
+//			}
+			
+			
+//			sr.setProjectionMatrix(levelCam.combined);
+//			sr.begin(ShapeType.Line);
+//			for (int r = 0; r < level.nodes.length; r++) {
+//				for (int c = 0; c < level.nodes[r].length; c++) {
+//					for (Node n : level.nodes[r][c].neighbors) {
+//						
+//						sr.box(n.col * Entity.TILESIZE + level.offX + 2, n.row * Entity.TILESIZE + level.offY + 2, 0, Entity.TILESIZE-4, Entity.TILESIZE-4, 0);
+//						
+//					}
+//				}
+//			}
+//			sr.end();
 		}
 		
 		batch.setProjectionMatrix(hudCam.combined);
@@ -458,9 +558,6 @@ public class GameLogic {
 		hudCam.position.setZero();
 		hudCam.translate(width / 2, height / 2);
 		hudCam.update();
-		
-//		Entity.screen.width = width;
-//		Entity.screen.height = height;
 	}
 	
 	public void info(String msg) {

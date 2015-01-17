@@ -1,6 +1,7 @@
 package koda.tanks;
 
 import java.io.IOException;
+import java.util.HashMap;
 
 import koda.tanks.Network.BulletMessage;
 import koda.tanks.Network.LeaveMessage;
@@ -22,6 +23,10 @@ public class TanksServer extends Listener {
 	Server server;
 	GameLogic game;
 	Array<Vector2> positions = new Array<Vector2>();
+	HashMap<String, Integer> bots = new HashMap<String, Integer>();
+	String[] botNames = {"Max Bot", "Harry Bot", "Danny Bot", "Alex Bot"};
+	int[] botIds = {-1, -2, -3, -4};
+	int nameId = 0;
 	
 	public TanksServer() {
 		game = new GameLogic(this);
@@ -38,16 +43,16 @@ public class TanksServer extends Listener {
 		
 		server.addListener(this);
 		server.start();
+		
+		createBot();
+		createBot();
+//		createBot();
 	}
 	
 	//uses random algorithm
 	public synchronized Vector2 getStartingSpot() {
 		if (game.players.values().size() > positions.size)
 			return null;
-		
-//		int i = 1;
-//		if (i == 1)
-//			return positions.get(0);
 		
 		boolean found = false;
 		int index = 0;
@@ -77,6 +82,78 @@ public class TanksServer extends Listener {
 		return p.collidesWith(rect);
 	}
 	
+	public void createBot() {
+		String name = null;
+		for (String s : botNames) {
+			if (game.playerByName(s) == null) {
+				name = s;
+				break;
+			}
+		}
+		
+//		String name = botNames[nameId];
+//		
+//		int id = botIds[nameId];
+		int id = 0;
+		boolean idSuccess = false;
+		for (int i = 0; i < botIds.length; i++) {
+			boolean canAssign = true;
+			for (Integer key : game.players.keySet()) {
+				if (botIds[i] == key) {
+					canAssign = false;
+					break;
+				}
+			}
+			
+			if (canAssign) {
+				id = botIds[i];
+				idSuccess = true;
+				break;
+			}
+		}
+		
+		if (!idSuccess) {
+			Log.info("Server could not assign a valid id to the bot");
+			return;
+		}
+		
+		//can't add this bot, all names are taken
+		if (name == null) {
+			Log.info("Server failed to create bot. All bot names taken");
+			return;
+		}
+		
+		Vector2 pos = getStartingSpot();
+//		Vector2 pos = null;
+//		if (name.equals("Harry Bot")) {
+//			for (Vector2 v : positions)
+//				if (v.x == 270 && v.y == 450)
+//					pos = v;
+//		} else {
+//			pos = positions.get(nameId);
+//		}
+//		nameId++;
+		Log.info(name + " spawned at " + pos);
+		if (pos == null) {
+			//this null check is useless; getStartingSpot() will infinitely loop
+			Log.info("Server failed to assign a starting position. All positions taken");
+			return;
+		}
+		
+		
+//		Log.info("Server creating bot " + name);
+		bots.put(name, id);
+		NewPlayerMessage msg = new NewPlayerMessage();
+		msg.pid = id;
+		msg.name = name;
+		msg.x = pos.x;
+		msg.y = pos.y;
+		msg.angle = Entity.RIGHT;
+		msg.hp = Player.MAX_HP;
+		msg.isBot = true;
+		game.onNewPlayer(msg);
+	}
+	
 	public void shutdown() {
 		Log.info("Server shutting down");
 		server.sendToAllTCP(new ShuttingDownMessage());
@@ -94,10 +171,14 @@ public class TanksServer extends Listener {
 		
 		if (pkt instanceof NewPlayerMessage) {
 			final NewPlayerMessage msg = (NewPlayerMessage) pkt;
-			//have the server assign a corner to the player
 			
 			//this chunk of code is only invoked when a player is connecting for the first time
 			Vector2 position = getStartingSpot();
+			if (position == null) {
+				//this null check is useless; getStartingSpot() will infinitely loop
+				Log.info("Server failed to assign a starting position. All positions taken");
+				return;
+			}
 			msg.pid = c.getID();
 			msg.x = position.x;
 			msg.y = position.y;
