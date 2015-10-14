@@ -16,13 +16,22 @@ public class TimerSystem {
 		timers.put(name, t);
 	}
 	
-	public void reset(String name) {
+	public void resetWithDelay(String name) {
 		lastTimer = name;
-		timers.get(name).reset();
+		timers.get(name).resetWithDelay();
 	}
 	
-	public void reset() {
-		reset(lastTimer);
+	public void resetWithDelay() {
+		resetWithDelay(lastTimer);
+	}
+	
+	public void resetWithoutDelay(String name) {
+		lastTimer = name;
+		timers.get(name).resetWithoutDelay();
+	}
+	
+	public void resetWithoutDelay() {
+		resetWithoutDelay(lastTimer);
 	}
 	
 	public boolean finished(String name) {

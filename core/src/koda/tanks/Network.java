@@ -18,6 +18,7 @@ public class Network {
 		k.register(BulletMessage.class);
 		k.register(PlayerHitMessage.class);
 		k.register(PlayerRevivedMessage.class);
+		k.register(ChatMessage.class);
 	}
 	
 	public static class ShuttingDownMessage {}
@@ -71,5 +72,10 @@ public class Network {
 		int angle;
 		float x;
 		float y;
+	}
+	
+	public static class ChatMessage {
+		String sender;
+		String message;
 	}
 }

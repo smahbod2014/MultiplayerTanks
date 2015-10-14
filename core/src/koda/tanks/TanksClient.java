@@ -3,6 +3,7 @@ package koda.tanks;
 import java.io.IOException;
 
 import koda.tanks.Network.BulletMessage;
+import koda.tanks.Network.ChatMessage;
 import koda.tanks.Network.LeaveMessage;
 import koda.tanks.Network.LoginResponseMessage;
 import koda.tanks.Network.NewPlayerMessage;
@@ -88,6 +89,9 @@ public class TanksClient extends Listener {
 		} else if (pkt instanceof PlayerRevivedMessage) {
 			PlayerRevivedMessage msg = (PlayerRevivedMessage) pkt;
 			game.onPlayerRevived(msg);
+		} else if (pkt instanceof ChatMessage) {
+			ChatMessage msg = (ChatMessage) pkt;
+			game.onChatMessage(msg);
 		}
 	}
 	

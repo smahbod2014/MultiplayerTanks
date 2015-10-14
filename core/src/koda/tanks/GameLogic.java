@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import koda.tanks.Network.BulletMessage;
+import koda.tanks.Network.ChatMessage;
 import koda.tanks.Network.LeaveMessage;
 import koda.tanks.Network.LoginResponseMessage;
 import koda.tanks.Network.NewPlayerMessage;
@@ -20,7 +21,6 @@ import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.Vector2;
 import com.esotericsoftware.minlog.Log;
 
@@ -370,7 +370,7 @@ public class GameLogic {
 		
 		Sprite spr = res == null ? null : res.getSprite("tank");
 		Player newPlayer = new Player(this, spr, msg.x, msg.y, msg.name, msg.isBot);
-		info("New player! " + newPlayer);
+//		info("New player! " + newPlayer);
 		//probably make dir a setter
 		newPlayer.angle = msg.angle;
 		newPlayer.hp = msg.hp;
@@ -389,8 +389,8 @@ public class GameLogic {
 		
 		if (isServer) {
 			//tell everyone about this new player
-			if (msg.isBot)
-				info("Telling everyone about " + msg.name);
+//			if (msg.isBot)
+//				info("Telling everyone about " + msg.name);
 			ts.server.sendToAllExceptTCP(msg.pid, msg);
 			
 			//tell this new player about everyone else
@@ -400,7 +400,7 @@ public class GameLogic {
 			if (!msg.isBot) {
 //				for (Connection con : ts.server.getConnections()) {
 //					if (con.getID() != msg.pid) {
-				info("There are currently " + players.values().size() + " players");
+//				info("There are currently " + players.values().size() + " players");
 				for (Map.Entry<Integer, Player> e : players.entrySet()) {
 					int id = e.getKey();
 					Player p = e.getValue();
@@ -416,7 +416,7 @@ public class GameLogic {
 						previousPlayer.isBot = p.isBot;
 						previousPlayer.score = scores.getScore(p.name);
 						previousPlayer.streak = scores.getStreak(p.name);
-						info("Sending previous player data about " + p.name + " to " + msg.name);
+						//info("Sending previous player data about " + p.name + " to " + msg.name);
 						ts.server.sendToTCP(msg.pid, previousPlayer);
 					}
 				}
@@ -452,10 +452,14 @@ public class GameLogic {
 		scores.localPlayerName = tc.name;
 		levelCam.position.set(msg.x, msg.y, 0);
 		levelCam.update();
-		info(tc.name + " has been instantiated");
+//		info(tc.name + " has been instantiated");
 	}
 	
 	
+	/**
+	 * Called by both server and client
+	 * @param msg
+	 */
 	public synchronized void onPlayerRevived(PlayerRevivedMessage msg) {
 		Player p = players.get(msg.pid);
 		p.respawn(msg.x, msg.y, msg.angle);
@@ -465,6 +469,14 @@ public class GameLogic {
 			levelCam.position.set(p.x, p.y, 0);
 			levelCam.update();
 		}
+	}
+	
+	/**
+	 * Called by client only
+	 * @param msg
+	 */
+	public void onChatMessage(ChatMessage msg) {
+		ChatLog.addMessage(msg.sender, msg.message);
 	}
 	
 	public synchronized void render(SpriteBatch batch) {
@@ -519,19 +531,23 @@ public class GameLogic {
 		
 		if (tc.alive) {
 			batch.begin();
-			res.getFont("text").draw(batch, "Connected", 2, 25);
+			float textX = Gdx.graphics.getWidth() - res.getFont("text").getBounds("Connected").width;
+			res.getFont("text").draw(batch, "Connected", textX - 2, Gdx.graphics.getHeight() - 2);
 			batch.end();
 		} else {
 			batch.begin();
-			res.getFont("text").draw(batch, "No connection!", 2, 25);
+			float textX = Gdx.graphics.getWidth() - res.getFont("text").getBounds("No connection!").width;
+			res.getFont("text").draw(batch, "No connection!", textX - 2, Gdx.graphics.getHeight() - 2);
 			batch.end();
 		}
 		
-		if (System.currentTimeMillis() < tc.timeSpecialTextSet + hitMessageDuration) {
-			batch.begin();
-			res.getFont("text").draw(batch, tc.specialText, 2, 50);
-			batch.end();
-		}
+//		if (System.currentTimeMillis() < tc.timeSpecialTextSet + hitMessageDuration) {
+//			batch.begin();
+//			res.getFont("text").draw(batch, tc.specialText, 2, 50);
+//			batch.end();
+//		}
+		
+//		ChatLog.render(batch);
 	}
 	
 	public Player playerByName(String name) {

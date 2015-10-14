@@ -21,6 +21,7 @@ public class Player extends Entity {
 	
 	public static final long DEAD_TIME = 1500;
 	public static final long SHOOT_TIME = 250;
+	public static final long BOT_SHOOT_TIME = SHOOT_TIME * 2;
 	public static final long RESPAWN_INVULN_TIME = 2000;
 	public static final long FLASHING_TIME = 125;
 	public static final long FLASHING_TIME2 = 62;
@@ -65,7 +66,7 @@ public class Player extends Entity {
 		if (!isBot)
 			timers.addTimer("shooting", SHOOT_TIME);
 		else
-			timers.addTimer("shooting", SHOOT_TIME * 2);
+			timers.addTimer("shooting", BOT_SHOOT_TIME);
 		timers.addTimer("dead", DEAD_TIME);
 		timers.addTimer("flashing", FLASHING_TIME);
 		timers.addTimer("flashing2", FLASHING_TIME2);
@@ -91,13 +92,13 @@ public class Player extends Entity {
 			return;
 		
 		hp -= damage;
-		timers.reset("flashing2");
+		timers.resetWithDelay("flashing2");
 		timers.setCount(0);
 		gotHit = true;
 		if (hp <= 0) {
 			hp = 0;
 			alive = false;
-			timers.reset("dead");
+			timers.resetWithDelay("dead");
 		}
 	}
 	
@@ -152,7 +153,7 @@ public class Player extends Entity {
 		lastY = y;
 		targetX = x;
 		targetY = y;
-		timers.reset("respawning");
+		timers.resetWithDelay("respawning");
 		timers.setCount(0);
 		invulnerable = true;
 	}
@@ -312,7 +313,7 @@ public class Player extends Entity {
 		
 		//shooting
 		if (alive && timers.finished("shooting") && signalSpace) {
-			timers.reset("shooting");
+			timers.resetWithDelay("shooting");
 			addBullet(x, y, angle, name);
 			BulletMessage msg = new BulletMessage();
 			if (!game.isServer) {
@@ -334,7 +335,7 @@ public class Player extends Entity {
 				flash(.7f);
 			
 			if (timers.poll("flashing2")) {
-				timers.reset("flashing2");
+				timers.resetWithDelay("flashing2");
 				if (timers.count("flashing2") % 2 == 0) {
 					flash(.7f);
 				} else {
@@ -353,7 +354,7 @@ public class Player extends Entity {
 				flash(.7f);
 			
 			if (timers.poll("flashing")) {
-				timers.reset("flashing");
+				timers.resetWithDelay("flashing");
 				if (timers.count("flashing") % 2 == 0) {
 					flash(.7f);
 				} else {

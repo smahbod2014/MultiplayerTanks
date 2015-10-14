@@ -8,21 +8,28 @@ public class MyTimer2 {
 	public int count;
 	public boolean checked;
 	public boolean justStarted;
+	public boolean ready;
 	
 	public MyTimer2(long duration) {
 		this.duration = duration;
 	}
 	
-	public void reset() {
+	public void resetWithDelay() {
 		current = System.currentTimeMillis();
 		checked = false;
 		justStarted = true;
 	}
 	
+	public void resetWithoutDelay() {
+		resetWithDelay();
+		ready = true;
+	}
+	
 	public boolean finished() {
 		long now = System.currentTimeMillis();
-		if (now >= current + duration) {
+		if (ready || now >= current + duration) {
 			elapsed = now - current;
+			ready = false;
 			return true;
 		}
 		return false;
@@ -55,14 +62,4 @@ public class MyTimer2 {
 		
 		return false;
 	}
-	
-//	public int poll() {
-//		if (finished()) {
-//			reset();
-//			count++;
-//			return count;
-//		}
-//		
-//		return -1;
-//	}
 }

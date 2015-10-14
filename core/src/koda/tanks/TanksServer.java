@@ -20,6 +20,7 @@ import com.esotericsoftware.minlog.Log;
 
 public class TanksServer extends Listener {
 
+	static final int NUM_BOTS = 7;
 	Server server;
 	GameLogic game;
 	Array<Vector2> positions = new Array<Vector2>();
@@ -44,13 +45,8 @@ public class TanksServer extends Listener {
 		server.addListener(this);
 		server.start();
 		
-		createBot();
-		createBot();
-		createBot();
-		createBot();
-		createBot();
-		createBot();
-		createBot();
+		for (int i = 0; i < NUM_BOTS; i++)
+			createBot();
 	}
 	
 	//uses random algorithm
@@ -137,7 +133,7 @@ public class TanksServer extends Listener {
 //			pos = positions.get(nameId);
 //		}
 //		nameId++;
-		Log.info(name + " spawned at " + pos);
+//		Log.info(name + " spawned at " + pos);
 		if (pos == null) {
 			//this null check is useless; getStartingSpot() will infinitely loop
 			Log.info("Server failed to assign a starting position. All positions taken");
@@ -167,7 +163,9 @@ public class TanksServer extends Listener {
 	
 	@Override
 	public void connected(Connection c) {
-		
+//		String welcome = "<html><body><h1>Welcome to the server!</h1></body></html>";
+//		c.sendTCP(welcome);
+//		System.out.println("Sent welcome message");
 	}
 	
 	@Override

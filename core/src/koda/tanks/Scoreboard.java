@@ -44,13 +44,15 @@ public class Scoreboard {
 	}
 	
 	public void updateEntryAdd(String name, int score) {
-		for (ScoreEntry s : entries) {
+		for (int i = 0; i < entries.size(); i++) {
+			ScoreEntry s = entries.get(i);
 			if (s.name.equals(name)) {
 				s.score += score;
 				s.streak++;
 				Collections.sort(entries);
 			}
 		}
+	
 	}
 	
 	//not used?
